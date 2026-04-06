@@ -1,0 +1,9 @@
+.env
+latest_sessions.json
+pet_counter.txt
+__pycache__/
+*.pyc
+.venv/
+venv/
+bot_runtime.out
+bot_runtime.err

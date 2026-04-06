@@ -1,0 +1,968 @@
+import asyncio
+import base64
+import json
+import logging
+from io import BytesIO
+from pathlib import Path
+
+from aiogram import Bot, Dispatcher, F
+from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import (
+    BufferedInputFile,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Message,
+)
+
+from config import (
+    CARD_NUMBER,
+    CONTACT_PHONE,
+    TELEGRAM_BOT_TOKEN,
+    TELEGRAM_SPECIAL_CHANNEL_ID,
+)
+from image_service import generate_images
+from PIL import Image, ImageDraw, ImageFont, ImageStat
+from text_service import (
+    AGE_NAMES,
+    CHARACTER_NAMES,
+    HEALTH_NAMES,
+    SIZE_NAMES,
+    generate_texts,
+)
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+latest_sessions: dict[int, dict] = {}
+latest_generated: dict[int, dict] = {}
+SESSIONS_FILE = Path("latest_sessions.json")
+PET_COUNTER_FILE = Path("pet_counter.txt")
+pet_counter_lock: asyncio.Lock | None = None
+
+
+class Form(StatesGroup):
+    photo = State()
+    name = State()
+    animal_type = State()
+    sex = State()
+    age = State()
+    size = State()
+    character = State()
+    health = State()
+    comments = State()
+    result = State()
+    edit_text = State()
+
+
+def kb(buttons: list[tuple[str, str]]) -> InlineKeyboardMarkup:
+    """Строит InlineKeyboardMarkup из списка (текст, callback_data)."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t, callback_data=d)] for t, d in buttons]
+    )
+
+
+def _load_latest_sessions() -> dict[int, dict]:
+    if not SESSIONS_FILE.exists():
+        return {}
+
+    try:
+        raw_data = json.loads(SESSIONS_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logging.exception("Не удалось загрузить latest_sessions.json")
+        return {}
+
+    sessions: dict[int, dict] = {}
+    for user_id, payload in raw_data.items():
+        try:
+            session = dict(payload)
+            photo_b64 = session.get("photo_bytes")
+            if photo_b64:
+                session["photo_bytes"] = base64.b64decode(photo_b64)
+            sessions[int(user_id)] = session
+        except Exception:
+            logging.exception("Не удалось восстановить сессию пользователя %s", user_id)
+    return sessions
+
+
+def _save_latest_sessions() -> None:
+    serializable: dict[str, dict] = {}
+    for user_id, payload in latest_sessions.items():
+        session = dict(payload)
+        photo_bytes = session.get("photo_bytes", b"")
+        if isinstance(photo_bytes, bytes):
+            session["photo_bytes"] = base64.b64encode(photo_bytes).decode("ascii")
+        serializable[str(user_id)] = session
+
+    try:
+        SESSIONS_FILE.write_text(
+            json.dumps(serializable, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    except OSError:
+        logging.exception("Не удалось сохранить latest_sessions.json")
+
+
+def _set_latest_session(user_id: int, data: dict) -> None:
+    latest_sessions[user_id] = dict(data)
+    _save_latest_sessions()
+
+
+def _get_latest_session(user_id: int) -> dict:
+    return latest_sessions.get(user_id, {}).copy()
+
+
+def _load_pet_counter() -> int:
+    if not PET_COUNTER_FILE.exists():
+        return 1
+
+    try:
+        raw_value = PET_COUNTER_FILE.read_text(encoding="utf-8").strip()
+        next_number = int(raw_value)
+        return next_number if next_number > 0 else 1
+    except (OSError, ValueError):
+        logging.exception("Не удалось загрузить pet_counter.txt")
+        return 1
+
+
+def _save_pet_counter(next_number: int) -> None:
+    try:
+        PET_COUNTER_FILE.write_text(str(next_number), encoding="utf-8")
+    except OSError:
+        logging.exception("Не удалось сохранить pet_counter.txt")
+
+
+def _get_pet_counter_lock() -> asyncio.Lock:
+    global pet_counter_lock
+    if pet_counter_lock is None:
+        pet_counter_lock = asyncio.Lock()
+    return pet_counter_lock
+
+
+async def _ensure_pet_number(user_id: int, session: dict) -> int:
+    pet_number = session.get("pet_number")
+    if isinstance(pet_number, int) and pet_number > 0:
+        return pet_number
+
+    global next_pet_number
+    async with _get_pet_counter_lock():
+        pet_number = next_pet_number
+        next_pet_number += 1
+        _save_pet_counter(next_pet_number)
+
+    session["pet_number"] = pet_number
+    _set_latest_session(user_id, session)
+    return pet_number
+
+
+START_KB = kb([("ℹ️ Как это работает", "start_help")])
+RESULT_KB = kb([("🔁 Перегенерировать", "regenerate")])
+PUBLISH_KB = kb([("📤 Отправить в канал", "publish_selected"), ("🔁 Перегенерировать", "regenerate")])
+latest_sessions.update(_load_latest_sessions())
+next_pet_number = _load_pet_counter()
+
+
+def photo_pick_kb(index: int) -> InlineKeyboardMarkup:
+    return kb([("⭐ Добавить в подборку", f"pick_photo:{index}")])
+
+
+def text_option_kb(index: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Выбрать", callback_data=f"pick_text:{index}"),
+                InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"edit_text:{index}"),
+            ]
+        ]
+    )
+
+
+async def _send_text_option(target: Message, text: str, index: int, total: int) -> None:
+    await target.answer(
+        _format_text_option(text, index, total),
+        reply_markup=text_option_kb(index),
+    )
+
+
+async def _update_text_option_message(chat_id: int, message_id: int, text: str, index: int, total: int) -> None:
+    await bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=message_id,
+        text=_format_text_option(text, index, total),
+        reply_markup=text_option_kb(index),
+    )
+
+
+def _set_generated_result(
+    user_id: int,
+    *,
+    images: list[bytes] | None = None,
+    texts: list[str] | None = None,
+    reset_photo: bool = True,
+    reset_text: bool = False,
+) -> None:
+    current = latest_generated.get(
+        user_id,
+        {
+            "images": [],
+            "texts": [],
+            "selected_photo_indices": [],
+            "selected_text_index": None,
+            "last_post_key": None,
+        },
+    )
+
+    if images is not None:
+        current["images"] = images
+    if texts is not None:
+        current["texts"] = texts
+
+    if reset_photo:
+        current["selected_photo_indices"] = []
+    if reset_text:
+        current["selected_text_index"] = None
+
+    current.pop("selected_photo_index", None)
+    current["last_post_key"] = None
+    latest_generated[user_id] = current
+
+
+def _get_selected_photo_indices(generated: dict) -> list[int]:
+    selected = generated.get("selected_photo_indices") or []
+    if not selected and isinstance(generated.get("selected_photo_index"), int):
+        selected = [generated["selected_photo_index"]]
+    return sorted({int(index) for index in selected})
+
+
+def _is_ready_for_publish(generated: dict | None) -> bool:
+    if not generated:
+        return False
+    return bool(_get_selected_photo_indices(generated)) and generated.get("selected_text_index") is not None
+
+
+def _build_selection_status(generated: dict) -> str:
+    photo_count = len(_get_selected_photo_indices(generated))
+    text_index = generated.get("selected_text_index")
+
+    if photo_count and text_index is not None:
+        return (
+            f"Готово к отправке: выбрано фото {photo_count} и описание {text_index + 1}. "
+            "Нажмите «Отправить в канал»."
+        )
+    if photo_count:
+        return f"Выбрано фото: {photo_count}. Теперь выберите одно описание."
+    if text_index is not None:
+        return "Описание выбрано. Теперь добавьте одно или несколько фото."
+    return "Сначала выберите хотя бы одно фото и одно описание."
+
+
+def _get_display_value(mapping: dict[str, str], raw_value: str) -> str:
+    return mapping.get(raw_value, "—")
+
+
+def _format_text_option(text: str, index: int, total: int) -> str:
+    return f"Описание {index + 1} из {total}\n\n{text.strip()}"
+
+
+def _build_photo_overlay_text(session: dict) -> str:
+    name = session.get("name", "").strip() or "Без клички"
+    age = _get_display_value(AGE_NAMES, session.get("age", ""))
+    size = _get_display_value(SIZE_NAMES, session.get("size", ""))
+    character = _get_display_value(CHARACTER_NAMES, session.get("character", ""))
+    health = _get_display_value(HEALTH_NAMES, session.get("health", ""))
+
+    lines = [
+        f"Кличка: {name}",
+        f"Возраст: {age}",
+        f"Размер: {size}",
+        f"Характер: {character}",
+        f"Здоровье: {health}",
+    ]
+    return "\n".join(lines)
+
+
+def _load_overlay_font(font_size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    font_candidates = [
+        "arial.ttf",
+        "segoeui.ttf",
+        "DejaVuSans.ttf",
+    ]
+    for font_name in font_candidates:
+        try:
+            return ImageFont.truetype(font_name, font_size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _overlay_text_on_photo(image_bytes: bytes, session: dict) -> bytes:
+    overlay_text = _build_photo_overlay_text(session)
+
+    with Image.open(BytesIO(image_bytes)) as image:
+        base = image.convert("RGBA")
+
+    width, height = base.size
+    font_size = max(22, min(width, height) // 28)
+    padding = max(18, min(width, height) // 36)
+    line_spacing = max(8, font_size // 4)
+    font = _load_overlay_font(font_size)
+
+    sample_left = int(width * 0.48)
+    sample_top = int(height * 0.62)
+    sample_region = base.crop((sample_left, sample_top, width, height)).convert("L")
+    brightness = ImageStat.Stat(sample_region).mean[0]
+
+    if brightness >= 145:
+        text_fill = (255, 255, 255, 255)
+        stroke_fill = (18, 18, 18, 220)
+    else:
+        text_fill = (16, 16, 16, 255)
+        stroke_fill = (250, 250, 250, 220)
+
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    text_bbox = draw.multiline_textbbox((0, 0), overlay_text, font=font, spacing=line_spacing)
+    text_width = text_bbox[2] - text_bbox[0]
+    text_height = text_bbox[3] - text_bbox[1]
+
+    text_x = max(padding, width - padding - text_width)
+    text_y = max(padding, height - padding - text_height)
+    draw.multiline_text(
+        (text_x, text_y),
+        overlay_text,
+        font=font,
+        fill=text_fill,
+        spacing=line_spacing,
+        align="right",
+        stroke_width=max(2, font_size // 14),
+        stroke_fill=stroke_fill,
+    )
+
+    composed = Image.alpha_composite(base, overlay).convert("RGB")
+    output = BytesIO()
+    composed.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _build_post_header(pet_name: str, pet_number: int) -> str:
+    clean_name = pet_name.strip()
+    if clean_name and clean_name != "Без клички":
+        return f"{clean_name} №{pet_number}"
+    return f"№{pet_number}"
+
+
+def _build_channel_post_text(*, pet_number: int, pet_name: str, description: str) -> str:
+    return "\n\n".join([_build_post_header(pet_name, pet_number), description.strip()]).strip()
+
+
+def _build_help_alert(pet_number: int) -> str:
+    parts = [f"№{pet_number}"]
+    if CARD_NUMBER:
+        parts.append(f"Карта: {CARD_NUMBER}")
+    if CONTACT_PHONE:
+        parts.append(f"Телефон: {CONTACT_PHONE}")
+    if len(parts) == 1:
+        parts.append("Контакты пока не настроены.")
+    return "\n".join(parts)
+
+
+async def _send_selected_images(
+    channel_id: str,
+    images: list[bytes],
+    photo_indices: list[int],
+    pet_number: int,
+    session: dict,
+) -> None:
+    selected_images = [_overlay_text_on_photo(images[index], session) for index in photo_indices]
+
+    if len(selected_images) == 1:
+        await bot.send_photo(
+            channel_id,
+            BufferedInputFile(selected_images[0], filename=f"pet_{pet_number}_1.png"),
+        )
+        return
+
+    media = [
+        InputMediaPhoto(
+            media=BufferedInputFile(image_bytes, filename=f"pet_{pet_number}_{position}.png")
+        )
+        for position, image_bytes in enumerate(selected_images, start=1)
+    ]
+    await bot.send_media_group(channel_id, media=media)
+
+
+async def _show_publish_prompt(call: CallbackQuery) -> None:
+    generated = latest_generated.get(call.from_user.id)
+    if not generated:
+        return
+
+    await call.message.answer(
+        _build_selection_status(generated),
+        reply_markup=PUBLISH_KB if _is_ready_for_publish(generated) else None,
+    )
+
+
+async def _publish_selected_post(call: CallbackQuery) -> bool:
+    user_id = call.from_user.id
+    generated = latest_generated.get(user_id)
+    if not generated:
+        await call.message.answer("Сначала сгенерируйте фото и описание заново.")
+        return False
+
+    photo_indices = _get_selected_photo_indices(generated)
+    text_index = generated.get("selected_text_index")
+    images = generated.get("images", [])
+    texts = generated.get("texts", [])
+
+    if not photo_indices or text_index is None:
+        return False
+
+    if text_index >= len(texts) or any(index >= len(images) for index in photo_indices):
+        await call.message.answer("Выбор устарел. Сгенерируйте варианты ещё раз.")
+        return False
+
+    if not TELEGRAM_SPECIAL_CHANNEL_ID:
+        await call.message.answer(
+            "Публикация в новый канал не настроена. Добавьте TELEGRAM_SPECIAL_CHANNEL_ID в .env, когда создадите канал."
+        )
+        return False
+
+    post_key = (tuple(photo_indices), text_index)
+    if generated.get("last_post_key") == post_key:
+        await call.message.answer("Этот вариант уже отправлен в канал.")
+        return True
+
+    session = _get_latest_session(user_id)
+    pet_number = await _ensure_pet_number(user_id, session)
+    pet_name = session.get("name", "").strip() or "Без клички"
+    post_text = _build_channel_post_text(
+        pet_number=pet_number,
+        pet_name=pet_name,
+        description=texts[text_index],
+    )
+
+    await _send_selected_images(
+        TELEGRAM_SPECIAL_CHANNEL_ID,
+        images,
+        photo_indices,
+        pet_number,
+        session,
+    )
+    await bot.send_message(
+        TELEGRAM_SPECIAL_CHANNEL_ID,
+        post_text,
+        reply_markup=kb([("❤️ Помочь", f"help_pet:{pet_number}")]),
+    )
+
+    generated["last_post_key"] = post_key
+    await call.message.answer("Пост отправлен в канал.")
+    return True
+
+
+@dp.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(Form.photo)
+    await message.answer(
+        "Привет! Я помогу создать красивое объявление для пристройки питомца.\n\n"
+        "Пришлите фото животного — кошки или собаки.\n"
+        "Отправьте его через галерею или скрепку в Telegram.",
+        reply_markup=START_KB,
+    )
+
+
+@dp.callback_query(Form.photo, F.data == "start_help")
+async def handle_start_help(call: CallbackQuery):
+    await call.answer()
+    await call.message.edit_text(
+        "Сценарий простой:\n"
+        "1. Вы отправляете фото животного через галерею или скрепку в Telegram.\n"
+        "2. Бот задаёт несколько вопросов кнопками.\n"
+        "3. После анкеты бот генерирует фото и тексты для объявления.\n\n"
+        "Когда будете готовы, пришлите фото.",
+        reply_markup=START_KB,
+    )
+
+
+@dp.message(Form.photo, F.photo)
+async def handle_photo(message: Message, state: FSMContext):
+    photo = message.photo[-1]
+    file = await bot.get_file(photo.file_id)
+    file_bytes = await bot.download_file(file.file_path)
+    await state.update_data(photo_bytes=file_bytes.read())
+    await state.set_state(Form.name)
+    await message.answer(
+        "Как зовут питомца? Напишите кличку текстом или пропустите.",
+        reply_markup=kb([("⏭ Пропустить", "skip_name")]),
+    )
+
+
+@dp.message(Form.photo)
+async def handle_photo_wrong(message: Message):
+    await message.answer("Пожалуйста, пришлите фото (не файл и не текст).")
+
+
+async def ask_animal_type(target: Message | CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(Form.animal_type)
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(
+            "Кто это?",
+            reply_markup=kb([("🐱 Кошка", "cat"), ("🐶 Собака", "dog")]),
+        )
+        return
+
+    await target.answer(
+        "Кто это?",
+        reply_markup=kb([("🐱 Кошка", "cat"), ("🐶 Собака", "dog")]),
+    )
+
+
+@dp.callback_query(Form.name, F.data == "skip_name")
+async def handle_skip_name(call: CallbackQuery, state: FSMContext):
+    await call.answer()
+    await state.update_data(name="")
+    await ask_animal_type(call, state)
+
+
+@dp.message(Form.name, F.text)
+async def handle_name(message: Message, state: FSMContext):
+    await state.update_data(name=message.text.strip())
+    await ask_animal_type(message, state)
+
+
+@dp.message(Form.name)
+async def handle_name_wrong(message: Message):
+    await message.answer("Напишите кличку текстом или нажмите «Пропустить».")
+
+
+@dp.callback_query(Form.animal_type, F.data.in_({"cat", "dog"}))
+async def handle_animal_type(call: CallbackQuery, state: FSMContext):
+    await state.update_data(animal_type=call.data)
+    await state.set_state(Form.sex)
+    await call.message.edit_text(
+        "Пол животного?",
+        reply_markup=kb([("♂ Самец", "male"), ("♀ Самка", "female")]),
+    )
+
+
+@dp.callback_query(Form.sex, F.data.in_({"male", "female"}))
+async def handle_sex(call: CallbackQuery, state: FSMContext):
+    await state.update_data(sex=call.data)
+    await state.set_state(Form.age)
+    await call.message.edit_text(
+        "Возраст?",
+        reply_markup=kb([
+            ("🍼 Котёнок / Щенок", "baby"),
+            ("🌱 Молодой", "young"),
+            ("🐾 Взрослый", "adult"),
+            ("🌿 Пожилой", "senior"),
+        ]),
+    )
+
+
+@dp.callback_query(Form.age, F.data.in_({"baby", "young", "adult", "senior"}))
+async def handle_age(call: CallbackQuery, state: FSMContext):
+    await state.update_data(age=call.data)
+    await state.set_state(Form.size)
+    await call.message.edit_text(
+        "Размер?",
+        reply_markup=kb([
+            ("🤏 Маленький", "small"),
+            ("🐕 Средний", "medium"),
+            ("🦁 Крупный", "large"),
+        ]),
+    )
+
+
+@dp.callback_query(Form.size, F.data.in_({"small", "medium", "large"}))
+async def handle_size(call: CallbackQuery, state: FSMContext):
+    await state.update_data(size=call.data)
+    await state.set_state(Form.character)
+    await call.message.edit_text(
+        "Характер?",
+        reply_markup=kb([
+            ("😌 Спокойный", "calm"),
+            ("⚡ Игривый", "playful"),
+            ("🥰 Ласковый", "affectionate"),
+            ("😎 Независимый", "independent"),
+        ]),
+    )
+
+
+@dp.callback_query(Form.character, F.data.in_({"calm", "playful", "affectionate", "independent"}))
+async def handle_character(call: CallbackQuery, state: FSMContext):
+    await state.update_data(character=call.data)
+    await state.set_state(Form.health)
+    await call.message.edit_text(
+        "Здоровье?",
+        reply_markup=kb([
+            ("💉 Привит", "vaccinated"),
+            ("✂️ Стерилизован", "sterilized"),
+            ("💉✂️ Привит + Стерилизован", "both"),
+            ("❓ Нет данных", "unknown"),
+        ]),
+    )
+
+
+@dp.callback_query(Form.health, F.data.in_({"vaccinated", "sterilized", "both", "unknown"}))
+async def handle_health(call: CallbackQuery, state: FSMContext):
+    await state.update_data(health=call.data)
+    await state.set_state(Form.comments)
+    await call.message.edit_text(
+        "Есть особые комментарии? Напишите или пропустите.",
+        reply_markup=kb([("⏭ Пропустить", "skip_comments")]),
+    )
+
+
+@dp.callback_query(Form.comments, F.data == "skip_comments")
+async def handle_skip_comments(call: CallbackQuery, state: FSMContext):
+    await state.update_data(comments="")
+    await state.set_state(Form.result)
+    await call.message.edit_text(
+        "Всё готово! Запускаю генерацию.",
+        reply_markup=kb([("🚀 Генерировать", "generate")]),
+    )
+
+
+@dp.message(Form.comments, F.text)
+async def handle_comments_text(message: Message, state: FSMContext):
+    await state.update_data(comments=message.text)
+    await state.set_state(Form.result)
+    await message.answer(
+        "Комментарий сохранён. Запускаю генерацию.",
+        reply_markup=kb([("🚀 Генерировать", "generate")]),
+    )
+
+
+@dp.callback_query(F.data == "generate")
+async def handle_generate(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    photo_bytes: bytes = data.get("photo_bytes", b"")
+
+    if not photo_bytes:
+        await call.answer("Фото не найдено, начните заново с /start", show_alert=True)
+        return
+
+    _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
+
+    await call.message.edit_text("Магия началась, минуточку терпения).")
+
+    try:
+        images, texts = await asyncio.gather(
+            generate_images(photo_bytes, data, count=3),
+            generate_texts(data, count=5),
+        )
+    except Exception:
+        logging.exception("Ошибка генерации")
+        await call.message.answer(
+            "Произошла ошибка при генерации. Попробуйте ещё раз через минуту или начните заново с /start."
+        )
+        await state.clear()
+        return
+
+    if not images or not texts:
+        latest_generated.pop(call.from_user.id, None)
+        await state.set_state(Form.result)
+        missing_parts = []
+        if not images:
+            missing_parts.append("фото")
+        if not texts:
+            missing_parts.append("описания")
+        await call.message.answer(
+            f"Не удалось получить {' и '.join(missing_parts)}. Нажмите «Перегенерировать», чтобы попробовать снова с теми же данными.",
+            reply_markup=RESULT_KB,
+        )
+        return
+
+    _set_generated_result(
+        call.from_user.id,
+        images=images,
+        texts=texts,
+        reset_photo=True,
+        reset_text=True,
+    )
+
+    if images:
+        for i, img_bytes in enumerate(images, 1):
+            await call.message.answer_photo(
+                BufferedInputFile(img_bytes, filename=f"pet_{i}.png"),
+                caption=f"Фото {i} из {len(images)}",
+                reply_markup=photo_pick_kb(i - 1),
+            )
+        await state.set_state(Form.result)
+        await call.message.answer(
+            "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+            reply_markup=RESULT_KB,
+        )
+
+    for i, text in enumerate(texts):
+        await _send_text_option(call.message, text, i, len(texts))
+
+    if not images:
+        await state.set_state(Form.result)
+        await call.message.answer(
+            "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+            reply_markup=RESULT_KB,
+        )
+
+
+@dp.callback_query(F.data == "regenerate")
+async def handle_regenerate(call: CallbackQuery, state: FSMContext):
+    data = _get_latest_session(call.from_user.id)
+    if not data:
+        data = await state.get_data()
+    photo_bytes: bytes = data.get("photo_bytes", b"")
+    generated = latest_generated.get(call.from_user.id, {})
+    existing_texts = generated.get("texts", [])
+    regenerate_all = not existing_texts
+
+    if not photo_bytes:
+        await call.answer("Сессия потерялась, пришлите фото заново.", show_alert=True)
+        return
+
+    await call.answer()
+    await call.message.edit_text("Магия началась, минуточку терпения).")
+
+    try:
+        if regenerate_all:
+            images, texts = await asyncio.gather(
+                generate_images(photo_bytes, data, count=3),
+                generate_texts(data, count=5),
+            )
+        else:
+            images = await generate_images(photo_bytes, data, count=3)
+            texts = existing_texts
+    except Exception:
+        logging.exception("Ошибка перегенерации")
+        await call.message.answer(
+            "Не удалось перегенерировать материалы. Попробуйте ещё раз через минуту или начните заново с /start."
+        )
+        return
+
+    if not images or not texts:
+        latest_generated.pop(call.from_user.id, None)
+        await state.set_state(Form.result)
+        missing_parts = []
+        if not images:
+            missing_parts.append("фото")
+        if not texts:
+            missing_parts.append("описания")
+        await call.message.answer(
+            f"Не удалось получить {' и '.join(missing_parts)}. Нажмите «Перегенерировать», чтобы попробовать ещё раз.",
+            reply_markup=RESULT_KB,
+        )
+        return
+
+    _set_generated_result(
+        call.from_user.id,
+        images=images,
+        texts=texts if regenerate_all else None,
+        reset_photo=True,
+        reset_text=regenerate_all,
+    )
+
+    for i, img_bytes in enumerate(images, 1):
+        await call.message.answer_photo(
+            BufferedInputFile(img_bytes, filename=f"pet_regenerated_{i}.png"),
+            caption=f"Новый вариант {i} из {len(images)}",
+            reply_markup=photo_pick_kb(i - 1),
+        )
+
+    if regenerate_all:
+        for i, text in enumerate(texts):
+            await _send_text_option(call.message, text, i, len(texts))
+
+    _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
+    await state.set_state(Form.result)
+    await call.message.answer(
+        "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+        reply_markup=RESULT_KB,
+    )
+
+
+@dp.callback_query(F.data.startswith("pick_photo:"))
+async def handle_pick_photo(call: CallbackQuery):
+    generated = latest_generated.get(call.from_user.id)
+    if not generated:
+        await call.answer("Варианты устарели. Сгенерируйте фото заново.", show_alert=True)
+        return
+
+    try:
+        photo_index = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer("Некорректный выбор фото.", show_alert=True)
+        return
+
+    if photo_index >= len(generated.get("images", [])):
+        await call.answer("Это фото уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
+        return
+
+    selected = set(_get_selected_photo_indices(generated))
+    if photo_index in selected:
+        selected.remove(photo_index)
+        generated["selected_photo_indices"] = sorted(selected)
+        await call.answer("Фото убрано из подборки.")
+    else:
+        selected.add(photo_index)
+        generated["selected_photo_indices"] = sorted(selected)
+        await call.answer(f"Фото добавлено. Сейчас выбрано: {len(selected)}.")
+
+    await _show_publish_prompt(call)
+
+
+@dp.callback_query(F.data.startswith("pick_text:"))
+async def handle_pick_text(call: CallbackQuery):
+    generated = latest_generated.get(call.from_user.id)
+    if not generated:
+        await call.answer("Описания устарели. Сгенерируйте варианты заново.", show_alert=True)
+        return
+
+    try:
+        text_index = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer("Некорректный выбор описания.", show_alert=True)
+        return
+
+    if text_index >= len(generated.get("texts", [])):
+        await call.answer("Это описание уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
+        return
+
+    generated["selected_text_index"] = text_index
+    await call.answer("Описание выбрано.")
+
+    await _show_publish_prompt(call)
+
+
+@dp.callback_query(F.data.startswith("edit_text:"))
+async def handle_edit_text_request(call: CallbackQuery, state: FSMContext):
+    generated = latest_generated.get(call.from_user.id)
+    if not generated:
+        await call.answer("Описания устарели. Сгенерируйте варианты заново.", show_alert=True)
+        return
+
+    try:
+        text_index = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer("Некорректный выбор описания.", show_alert=True)
+        return
+
+    texts = generated.get("texts", [])
+    if text_index >= len(texts):
+        await call.answer("Это описание уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
+        return
+
+    await state.set_state(Form.edit_text)
+    await state.update_data(
+        edit_text_index=text_index,
+        edit_message_id=call.message.message_id,
+        edit_message_chat_id=call.message.chat.id,
+    )
+    await call.answer("Можно редактировать.")
+    await call.message.answer(
+        "Отправьте новый текст для этого описания одним сообщением.\n\n"
+        f"Текущий вариант:\n\n{texts[text_index]}"
+    )
+
+
+@dp.message(Form.edit_text, F.text)
+async def handle_edit_text_submit(message: Message, state: FSMContext):
+    data = await state.get_data()
+    text_index = data.get("edit_text_index")
+    edit_message_id = data.get("edit_message_id")
+    edit_message_chat_id = data.get("edit_message_chat_id")
+
+    if not isinstance(text_index, int) or not isinstance(edit_message_id, int) or not isinstance(edit_message_chat_id, int):
+        await state.set_state(Form.result)
+        await message.answer("Не удалось сохранить правку. Выберите описание заново.")
+        return
+
+    generated = latest_generated.get(message.from_user.id)
+    if not generated:
+        await state.set_state(Form.result)
+        await message.answer("Описания устарели. Сгенерируйте варианты заново.")
+        return
+
+    texts = generated.get("texts", [])
+    if text_index >= len(texts):
+        await state.set_state(Form.result)
+        await message.answer("Это описание уже недоступно. Сгенерируйте варианты заново.")
+        return
+
+    updated_text = message.text.strip()
+    if not updated_text:
+        await message.answer("Текст не должен быть пустым. Пришлите исправленное описание ещё раз.")
+        return
+
+    previous_text = texts[text_index].strip()
+    generated["texts"][text_index] = updated_text
+    if updated_text != previous_text:
+        await _update_text_option_message(
+            chat_id=edit_message_chat_id,
+            message_id=edit_message_id,
+            text=updated_text,
+            index=text_index,
+            total=len(generated["texts"]),
+        )
+
+    await state.update_data(
+        edit_text_index=None,
+        edit_message_id=None,
+        edit_message_chat_id=None,
+    )
+    await state.set_state(Form.result)
+
+    if updated_text == previous_text:
+        await message.answer("Описание оставлено без изменений.")
+    else:
+        await message.answer("Описание обновлено и сохранено.")
+
+    if _is_ready_for_publish(generated):
+        await message.answer(
+            _build_selection_status(generated),
+            reply_markup=PUBLISH_KB,
+        )
+
+
+@dp.message(Form.edit_text)
+async def handle_edit_text_wrong(message: Message):
+    await message.answer("Пришлите новый текст описания одним сообщением.")
+
+
+@dp.callback_query(F.data == "publish_selected")
+async def handle_publish_selected(call: CallbackQuery):
+    generated = latest_generated.get(call.from_user.id)
+    if not _is_ready_for_publish(generated):
+        await call.answer("Сначала выберите фото и описание.", show_alert=True)
+        return
+
+    await call.answer()
+    await _publish_selected_post(call)
+
+
+@dp.callback_query(F.data.startswith("help_pet:"))
+async def handle_help_pet(call: CallbackQuery):
+    try:
+        pet_number = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer("Не удалось открыть контакты.", show_alert=True)
+        return
+
+    await call.answer(_build_help_alert(pet_number), show_alert=True)
+
+
+@dp.callback_query()
+async def handle_unknown_callback(call: CallbackQuery):
+    await call.answer("Кнопка устарела. Попробуйте ещё раз или начните с /start.", show_alert=True)
+
+
+async def main():
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
