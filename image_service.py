@@ -5,7 +5,7 @@ import random
 from io import BytesIO
 
 from PIL import Image, ImageOps
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
+from openai import APIError, AsyncOpenAI
 
 from config import OPENAI_API_KEY
 
@@ -99,10 +99,10 @@ def _build_reference_images(photo_bytes: bytes) -> list[tuple[str, bytes, str]]:
     full_png = _image_to_png_bytes(normalized)
     focus_png = _image_to_png_bytes(_make_focus_crop(normalized))
 
-    references = [("reference_full.png", full_png, "image/png")]
-    if focus_png != full_png:
-        references.append(("reference_focus.png", focus_png, "image/png"))
-    return references
+    return [
+        ("reference_full.png", full_png, "image/png"),
+        ("reference_focus.png", focus_png, "image/png"),
+    ]
 
 
 def _build_prompt(
@@ -158,11 +158,12 @@ async def _edit_single_image(
                 timeout=120,
             )
             return base64.b64decode(response.data[0].b64_json)
-        except (APIConnectionError, APITimeoutError) as exc:
+        except APIError as exc:
             last_error = exc
             logging.warning(
-                "Reference edit attempt %s failed, retrying with a lighter request",
+                "Reference edit attempt %s failed, retrying with a lighter request: %s",
                 index,
+                exc,
             )
             await asyncio.sleep(1.5)
 
@@ -197,7 +198,7 @@ async def generate_images(
 
         try:
             results.append(await _edit_single_image(reference_images, prompt))
-        except (APIConnectionError, APITimeoutError):
-            logging.warning("Skipping one image after repeated connection failures")
+        except APIError as exc:
+            logging.warning("Skipping one image after repeated API failures: %s", exc)
 
     return results

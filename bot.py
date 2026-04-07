@@ -41,6 +41,7 @@ latest_sessions: dict[int, dict] = {}
 latest_generated: dict[int, dict] = {}
 generation_expiry_tasks: dict[int, asyncio.Task] = {}
 SESSIONS_FILE = Path("latest_sessions.json")
+PET_COUNTER_FILE = Path("pet_counter.txt")
 GENERATION_TTL_SECONDS = 5 * 60
 LOADING_FRAME_DELAY_SECONDS = 0.8
 START_PROMPT_TEXT = (
@@ -199,15 +200,17 @@ async def _start_loading_animation(message: Message) -> asyncio.Task:
 
 
 START_KB = kb([("ℹ️ Как это работает", "start_help")])
-RESULT_KB = kb([("🔁 Перегенерировать", "regenerate"), ("🆕 Начать заново", "start_over")])
+RESULT_KB = kb([("❤️ Помочь", "help_contacts"), ("🔁 Перегенерировать", "regenerate"), ("🆕 Начать заново", "start_over")])
 PUBLISH_KB = kb(
     [
         ("📤 Отправить в канал", "publish_selected"),
+        ("❤️ Помочь", "help_contacts"),
         ("🔁 Перегенерировать", "regenerate"),
         ("🆕 Начать заново", "start_over"),
     ]
 )
 latest_sessions.update(_load_latest_sessions())
+pet_counter_lock = asyncio.Lock()
 
 
 def photo_pick_kb(index: int) -> InlineKeyboardMarkup:
@@ -257,6 +260,7 @@ def _set_generated_result(
             "selected_photo_indices": [],
             "selected_text_index": None,
             "last_post_key": None,
+            "last_post_number": None,
         },
     )
 
@@ -272,6 +276,7 @@ def _set_generated_result(
 
     current.pop("selected_photo_index", None)
     current["last_post_key"] = None
+    current["last_post_number"] = None
     latest_generated[user_id] = current
 
 
@@ -431,11 +436,11 @@ def _overlay_text_on_photo(image_bytes: bytes, session: dict) -> bytes:
     brightness = ImageStat.Stat(sample_region).mean[0]
 
     if brightness >= 145:
-        text_fill = (255, 255, 255, 255)
-        stroke_fill = (18, 18, 18, 220)
-    else:
         text_fill = (16, 16, 16, 255)
         stroke_fill = (250, 250, 250, 220)
+    else:
+        text_fill = (255, 255, 255, 255)
+        stroke_fill = (18, 18, 18, 220)
 
     overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
@@ -462,27 +467,64 @@ def _overlay_text_on_photo(image_bytes: bytes, session: dict) -> bytes:
     return output.getvalue()
 
 
-def _build_post_header(pet_name: str) -> str:
+async def _reserve_next_pet_number() -> int:
+    async with pet_counter_lock:
+        next_number = 1
+
+        try:
+            raw_value = PET_COUNTER_FILE.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            raw_value = ""
+        except OSError:
+            logging.exception("Не удалось прочитать pet_counter.txt, начинаю счётчик с 1")
+            raw_value = ""
+
+        if raw_value:
+            try:
+                parsed_value = int(raw_value)
+                if parsed_value > 0:
+                    next_number = parsed_value
+            except ValueError:
+                logging.warning("Некорректное значение в pet_counter.txt: %r. Счётчик сброшен на 1.", raw_value)
+
+        try:
+            PET_COUNTER_FILE.write_text(f"{next_number + 1}\n", encoding="utf-8")
+        except OSError as exc:
+            raise RuntimeError("Не удалось сохранить следующий номер питомца.") from exc
+
+        return next_number
+
+
+def _build_post_header(pet_name: str, pet_number: int) -> str:
     clean_name = pet_name.strip()
     if clean_name and clean_name != "Без клички":
-        return clean_name
-    return ""
+        return f"{clean_name} №{pet_number}"
+    return f"№{pet_number}"
 
 
-def _build_channel_post_text(*, pet_name: str, description: str) -> str:
-    parts = [_build_post_header(pet_name), description.strip()]
+def _build_channel_post_text(*, pet_name: str, pet_number: int, description: str) -> str:
+    parts = [_build_post_header(pet_name, pet_number), description.strip()]
     return "\n\n".join(part for part in parts if part).strip()
 
 
-def _build_help_alert() -> str:
+def _build_help_alert(*, pet_number: int | None = None) -> str:
     parts: list[str] = []
+    if pet_number is not None:
+        parts.append(f"Питомец: №{pet_number}")
     if CARD_NUMBER:
         parts.append(f"Карта: {CARD_NUMBER}")
     if CONTACT_PHONE:
         parts.append(f"Телефон: {CONTACT_PHONE}")
-    if not parts:
-        parts.append("Контакты пока не настроены.")
+    parts.append("Канал: https://t.me/save_cat")
+    if not CARD_NUMBER and not CONTACT_PHONE:
+        insert_at = 1 if pet_number is not None else 0
+        parts.insert(insert_at, "Карта и телефон пока не настроены.")
     return "\n".join(parts)
+
+
+def _build_help_keyboard(*, pet_number: int | None = None) -> InlineKeyboardMarkup:
+    callback_data = f"help_pet:{pet_number}" if pet_number is not None else "help_contacts"
+    return kb([("❤️ Помочь", callback_data)])
 
 
 async def _send_selected_images(
@@ -514,7 +556,7 @@ async def _show_publish_prompt(call: CallbackQuery) -> None:
 
     await call.message.answer(
         _build_selection_status(generated),
-        reply_markup=PUBLISH_KB if _is_ready_for_publish(generated) else None,
+        reply_markup=PUBLISH_KB if _is_ready_for_publish(generated) else RESULT_KB,
     )
 
 
@@ -550,8 +592,15 @@ async def _publish_selected_post(call: CallbackQuery) -> bool:
 
     session = _get_latest_session(user_id)
     pet_name = session.get("name", "").strip() or "Без клички"
+    try:
+        pet_number = await _reserve_next_pet_number()
+    except RuntimeError:
+        logging.exception("Не удалось зарезервировать номер питомца для публикации")
+        await call.message.answer("Не удалось подготовить номер питомца для публикации. Попробуйте ещё раз.")
+        return False
     post_text = _build_channel_post_text(
         pet_name=pet_name,
+        pet_number=pet_number,
         description=texts[text_index],
     )
 
@@ -564,12 +613,29 @@ async def _publish_selected_post(call: CallbackQuery) -> bool:
     await bot.send_message(
         TELEGRAM_SPECIAL_CHANNEL_ID,
         post_text,
-        reply_markup=kb([("❤️ Помочь", "help_contacts")]),
+        reply_markup=_build_help_keyboard(pet_number=pet_number),
     )
 
     generated["last_post_key"] = post_key
+    generated["last_post_number"] = pet_number
     await call.message.answer("Пост отправлен в канал.")
     return True
+
+
+async def _store_photo_and_ask_name(
+    message: Message,
+    state: FSMContext,
+    *,
+    file_id: str,
+    acknowledged: bool = False,
+) -> None:
+    await state.update_data(photo_bytes=await _download_telegram_file_bytes(file_id))
+    await state.set_state(Form.name)
+    prompt = "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите." if acknowledged else "Как зовут питомца? Напишите кличку текстом или пропустите."
+    await message.answer(
+        prompt,
+        reply_markup=kb([("⏭ Пропустить", "skip_name")]),
+    )
 
 
 @dp.message(CommandStart())
@@ -594,59 +660,28 @@ async def handle_start_help(call: CallbackQuery):
 @dp.message(Form.photo, F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     photo = message.photo[-1]
-    await state.update_data(photo_bytes=await _download_telegram_file_bytes(photo.file_id))
-    await state.set_state(Form.name)
-    await message.answer(
-        "Как зовут питомца? Напишите кличку текстом или пропустите.",
-        reply_markup=kb([("⏭ Пропустить", "skip_name")]),
-    )
-
-
-@dp.message(Form.photo)
-async def handle_photo_mobile_entry(message: Message, state: FSMContext):
-    if _is_supported_image_document(message):
-        await state.update_data(photo_bytes=await _download_telegram_file_bytes(message.document.file_id))
-        await state.set_state(Form.name)
-        await message.answer(
-            "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите.",
-            reply_markup=kb([("⏭ Пропустить", "skip_name")]),
-        )
-        return
-
-    if _is_unsupported_phone_image(message):
-        await message.answer(
-            "Файл HEIC/HEIF не поддерживается. Отправьте снимок как обычное фото через галерею Telegram, не как файл."
-        )
-        return
-
-    await message.answer(
-        "Пожалуйста, пришлите фото животного. Лучше отправлять его как обычное фото через галерею Telegram, а не как файл."
-    )
-
-
-@dp.message(Form.photo)
-async def handle_photo_wrong(message: Message):
-    await message.answer("Пожалуйста, пришлите фото (не файл и не текст).")
+    await _store_photo_and_ask_name(message, state, file_id=photo.file_id)
 
 
 @dp.message(Form.photo, lambda message: _is_supported_image_document(message))
 async def handle_photo_document(message: Message, state: FSMContext):
-    await state.update_data(photo_bytes=await _download_telegram_file_bytes(message.document.file_id))
-    await state.set_state(Form.name)
+    await _store_photo_and_ask_name(
+        message,
+        state,
+        file_id=message.document.file_id,
+        acknowledged=True,
+    )
+
+
+@dp.message(Form.photo, lambda message: _is_unsupported_phone_image(message))
+async def handle_photo_heic(message: Message):
     await message.answer(
-        "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите.",
-        reply_markup=kb([("⏭ Пропустить", "skip_name")]),
+        "Файл HEIC/HEIF не поддерживается. Отправьте снимок как обычное фото через галерею Telegram, не как файл."
     )
 
 
 @dp.message(Form.photo)
 async def handle_photo_wrong(message: Message):
-    if _is_unsupported_phone_image(message):
-        await message.answer(
-            "Файл HEIC/HEIF не поддерживается. Отправьте снимок как обычное фото через галерею Telegram, не как файл."
-        )
-        return
-
     await message.answer(
         "Пожалуйста, пришлите фото животного. Лучше отправлять его как обычное фото через галерею Telegram, а не как файл."
     )
@@ -816,6 +851,7 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
         await call.answer("Фото не найдено, начните заново с /start", show_alert=True)
         return
 
+    await call.answer()
     _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
     _cancel_generation_expiry(call.from_user.id)
 
@@ -828,10 +864,12 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
         )
     except Exception:
         logging.exception("Ошибка генерации")
+        latest_generated.pop(call.from_user.id, None)
+        await state.set_state(Form.result)
         await call.message.answer(
-            "Произошла ошибка при генерации. Попробуйте ещё раз через минуту или начните заново с /start."
+            "Произошла ошибка при генерации. Попробуйте ещё раз через минуту или начните заново с /start.",
+            reply_markup=RESULT_KB,
         )
-        await state.clear()
         return
     finally:
         loading_task.cancel()
@@ -916,8 +954,10 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
             texts = existing_texts
     except Exception:
         logging.exception("Ошибка перегенерации")
+        await state.set_state(Form.result)
         await call.message.answer(
-            "Не удалось перегенерировать материалы. Попробуйте ещё раз через минуту или начните заново с /start."
+            "Не удалось перегенерировать материалы. Попробуйте ещё раз через минуту или начните заново с /start.",
+            reply_markup=RESULT_KB,
         )
         return
     finally:
@@ -1140,7 +1180,14 @@ async def handle_publish_selected(call: CallbackQuery):
 @dp.callback_query(F.data == "help_contacts")
 @dp.callback_query(F.data.startswith("help_pet:"))
 async def handle_help_contacts(call: CallbackQuery):
-    await call.answer(_build_help_alert(), show_alert=True)
+    pet_number: int | None = None
+    if call.data.startswith("help_pet:"):
+        try:
+            pet_number = int(call.data.split(":", 1)[1])
+        except ValueError:
+            logging.warning("Некорректный номер питомца в callback_data: %s", call.data)
+
+    await call.answer(_build_help_alert(pet_number=pet_number), show_alert=True)
 
 
 @dp.callback_query(F.data == "start_over")

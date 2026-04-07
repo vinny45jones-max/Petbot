@@ -129,7 +129,8 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "")
+TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
+TELEGRAM_SPECIAL_CHANNEL_ID = os.getenv("TELEGRAM_SPECIAL_CHANNEL_ID", "").strip() or TELEGRAM_CHANNEL_ID
 
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не задан в .env")
@@ -431,8 +432,8 @@ prompt = (
 Алгоритм выбора цвета текста:
 1. Вырезать правую нижнюю четверть изображения (там будет текст)
 2. Перевести в grayscale и посчитать среднюю яркость
-3. Если яркость >= 145: белый текст + тёмная обводка
-4. Если яркость < 145: тёмный текст + светлая обводка
+3. Если яркость >= 145: тёмный текст + светлая обводка
+4. Если яркость < 145: белый текст + тёмная обводка
 
 ```python
 sample_region = image.crop((w * 0.48, h * 0.62, w, h)).convert("L")
