@@ -7,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -139,6 +140,10 @@ def _drop_latest_session(user_id: int) -> None:
         _save_latest_sessions()
 
 
+def _has_pending_name_step(session: dict) -> bool:
+    return isinstance(session.get("photo_bytes"), bytes) and not session.get("animal_type")
+
+
 def _cancel_generation_expiry(user_id: int) -> None:
     task = generation_expiry_tasks.pop(user_id, None)
     if task and not task.done():
@@ -213,34 +218,51 @@ latest_sessions.update(_load_latest_sessions())
 pet_counter_lock = asyncio.Lock()
 
 
-def photo_pick_kb(index: int) -> InlineKeyboardMarkup:
-    return kb([("⭐ Добавить в подборку", f"pick_photo:{index}")])
+def photo_pick_kb(index: int, *, selected: bool = False) -> InlineKeyboardMarkup:
+    label = "✅ В подборке" if selected else "⭐ Добавить в подборку"
+    return kb([(label, f"pick_photo:{index}")])
 
 
-def text_option_kb(index: int) -> InlineKeyboardMarkup:
+def text_option_kb(index: int, *, selected: bool = False) -> InlineKeyboardMarkup:
+    select_label = "✅ В подборке" if selected else "✅ Выбрать"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Выбрать", callback_data=f"pick_text:{index}"),
+                InlineKeyboardButton(text=select_label, callback_data=f"pick_text:{index}"),
                 InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"edit_text:{index}"),
             ]
         ]
     )
 
 
-async def _send_text_option(target: Message, text: str, index: int, total: int) -> None:
-    await target.answer(
+async def _send_text_option(
+    target: Message,
+    text: str,
+    index: int,
+    total: int,
+    *,
+    selected: bool = False,
+) -> Message:
+    return await target.answer(
         _format_text_option(text, index, total),
-        reply_markup=text_option_kb(index),
+        reply_markup=text_option_kb(index, selected=selected),
     )
 
 
-async def _update_text_option_message(chat_id: int, message_id: int, text: str, index: int, total: int) -> None:
+async def _update_text_option_message(
+    chat_id: int,
+    message_id: int,
+    text: str,
+    index: int,
+    total: int,
+    *,
+    selected: bool = False,
+) -> None:
     await bot.edit_message_text(
         chat_id=chat_id,
         message_id=message_id,
         text=_format_text_option(text, index, total),
-        reply_markup=text_option_kb(index),
+        reply_markup=text_option_kb(index, selected=selected),
     )
 
 
@@ -257,10 +279,13 @@ def _set_generated_result(
         {
             "images": [],
             "texts": [],
+            "text_message_ids": [],
             "selected_photo_indices": [],
             "selected_text_index": None,
             "last_post_key": None,
             "last_post_number": None,
+            "selection_prompt_message_id": None,
+            "selection_prompt_chat_id": None,
         },
     )
 
@@ -268,6 +293,8 @@ def _set_generated_result(
         current["images"] = images
     if texts is not None:
         current["texts"] = texts
+        if reset_text:
+            current["text_message_ids"] = []
 
     if reset_photo:
         current["selected_photo_indices"] = []
@@ -294,19 +321,67 @@ def _is_ready_for_publish(generated: dict | None) -> bool:
 
 
 def _build_selection_status(generated: dict) -> str:
-    photo_count = len(_get_selected_photo_indices(generated))
+    selected_photos = _get_selected_photo_indices(generated)
+    photo_count = len(selected_photos)
     text_index = generated.get("selected_text_index")
+    photo_labels = ", ".join(str(index + 1) for index in selected_photos)
 
     if photo_count and text_index is not None:
-        return (
-            f"Готово к отправке: выбрано фото {photo_count} и описание {text_index + 1}. "
-            "Нажмите «Отправить в канал»."
-        )
+        return f"Готово к отправке: выбрано фото {photo_labels} и описание {text_index + 1}."
     if photo_count:
-        return f"Выбрано фото: {photo_count}. Теперь выберите одно описание."
+        return f"Выбрано фото: {photo_labels}."
     if text_index is not None:
-        return "Описание выбрано. Теперь добавьте одно или несколько фото."
+        return f"Выбрано описание: {text_index + 1}."
     return "Сначала выберите хотя бы одно фото и одно описание."
+
+
+async def _safe_answer_callback(
+    call: CallbackQuery,
+    text: str | None = None,
+    *,
+    show_alert: bool = False,
+) -> None:
+    try:
+        await call.answer(text, show_alert=show_alert)
+    except TelegramBadRequest:
+        logging.debug("Не удалось ответить на callback: query устарел", exc_info=True)
+
+
+async def _upsert_selection_prompt(
+    *,
+    user_id: int,
+    chat_id: int,
+    target_message: Message | None = None,
+) -> None:
+    generated = latest_generated.get(user_id)
+    if not generated:
+        return
+
+    prompt_text = _build_selection_status(generated)
+    reply_markup = PUBLISH_KB if _is_ready_for_publish(generated) else RESULT_KB
+    prompt_message_id = generated.get("selection_prompt_message_id")
+    prompt_chat_id = generated.get("selection_prompt_chat_id") or chat_id
+
+    if isinstance(prompt_message_id, int):
+        try:
+            await bot.edit_message_text(
+                chat_id=prompt_chat_id,
+                message_id=prompt_message_id,
+                text=prompt_text,
+                reply_markup=reply_markup,
+            )
+            return
+        except TelegramBadRequest as exc:
+            if "message is not modified" in str(exc).lower():
+                return
+
+    if target_message is None:
+        sent_message = await bot.send_message(chat_id, prompt_text, reply_markup=reply_markup)
+    else:
+        sent_message = await target_message.answer(prompt_text, reply_markup=reply_markup)
+
+    generated["selection_prompt_message_id"] = sent_message.message_id
+    generated["selection_prompt_chat_id"] = sent_message.chat.id
 
 
 def _choice_state_prompt(state_name: str | None) -> tuple[str, InlineKeyboardMarkup] | None:
@@ -507,19 +582,11 @@ def _build_channel_post_text(*, pet_name: str, pet_number: int, description: str
     return "\n\n".join(part for part in parts if part).strip()
 
 
-def _build_help_alert(*, pet_number: int | None = None) -> str:
-    parts: list[str] = []
-    if pet_number is not None:
-        parts.append(f"Питомец: №{pet_number}")
-    if CARD_NUMBER:
-        parts.append(f"Карта: {CARD_NUMBER}")
-    if CONTACT_PHONE:
-        parts.append(f"Телефон: {CONTACT_PHONE}")
-    parts.append("Канал: https://t.me/save_cat")
-    if not CARD_NUMBER and not CONTACT_PHONE:
-        insert_at = 1 if pet_number is not None else 0
-        parts.insert(insert_at, "Карта и телефон пока не настроены.")
-    return "\n".join(parts)
+def _build_help_message() -> str:
+    phone_line = f"Контакт: {CONTACT_PHONE}" if CONTACT_PHONE else "Контакт: не настроен"
+    card_line = f"Карта: {CARD_NUMBER}" if CARD_NUMBER else "Карта: не настроена"
+    channel_line = "Канал: https://t.me/save_cat"
+    return "\n".join([phone_line, card_line, channel_line])
 
 
 def _build_help_keyboard(*, pet_number: int | None = None) -> InlineKeyboardMarkup:
@@ -550,13 +617,10 @@ async def _send_selected_images(
 
 
 async def _show_publish_prompt(call: CallbackQuery) -> None:
-    generated = latest_generated.get(call.from_user.id)
-    if not generated:
-        return
-
-    await call.message.answer(
-        _build_selection_status(generated),
-        reply_markup=PUBLISH_KB if _is_ready_for_publish(generated) else RESULT_KB,
+    await _upsert_selection_prompt(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        target_message=call.message,
     )
 
 
@@ -629,8 +693,10 @@ async def _store_photo_and_ask_name(
     file_id: str,
     acknowledged: bool = False,
 ) -> None:
-    await state.update_data(photo_bytes=await _download_telegram_file_bytes(file_id))
+    photo_bytes = await _download_telegram_file_bytes(file_id)
+    await state.update_data(photo_bytes=photo_bytes)
     await state.set_state(Form.name)
+    _set_latest_session(message.from_user.id, {"photo_bytes": photo_bytes})
     prompt = "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите." if acknowledged else "Как зовут питомца? Напишите кличку текстом или пропустите."
     await message.answer(
         prompt,
@@ -706,18 +772,41 @@ async def ask_animal_type(target: Message | CallbackQuery, state: FSMContext) ->
 async def handle_skip_name(call: CallbackQuery, state: FSMContext):
     await call.answer()
     await state.update_data(name="")
+    session = await state.get_data()
+    _set_latest_session(call.from_user.id, session)
     await ask_animal_type(call, state)
 
 
 @dp.message(Form.name, F.text)
 async def handle_name(message: Message, state: FSMContext):
     await state.update_data(name=message.text.strip())
+    session = await state.get_data()
+    _set_latest_session(message.from_user.id, session)
     await ask_animal_type(message, state)
 
 
 @dp.message(Form.name)
 async def handle_name_wrong(message: Message):
     await message.answer("Напишите кличку текстом или нажмите «Пропустить».")
+
+
+@dp.callback_query(F.data == "skip_name", lambda call: _has_pending_name_step(_get_latest_session(call.from_user.id)))
+async def recover_skip_name_without_state(call: CallbackQuery, state: FSMContext):
+    await call.answer()
+    session = _get_latest_session(call.from_user.id)
+    session["name"] = ""
+    _set_latest_session(call.from_user.id, session)
+    await state.set_data(session)
+    await ask_animal_type(call, state)
+
+
+@dp.message(F.text, lambda message: _has_pending_name_step(_get_latest_session(message.from_user.id)))
+async def recover_name_without_state(message: Message, state: FSMContext):
+    session = _get_latest_session(message.from_user.id)
+    session["name"] = message.text.strip()
+    _set_latest_session(message.from_user.id, session)
+    await state.set_data(session)
+    await ask_animal_type(message, state)
 
 
 @dp.callback_query(Form.animal_type, F.data.in_({"cat", "dog"}))
@@ -906,23 +995,22 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
                 caption=f"Фото {i} из {len(images)}",
                 reply_markup=photo_pick_kb(i - 1),
             )
-        await state.set_state(Form.result)
-        await call.message.answer(
-            "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
-            "Подборка хранится 5 минут.",
-            reply_markup=RESULT_KB,
-        )
 
+    text_message_ids: list[int] = []
     for i, text in enumerate(texts):
-        await _send_text_option(call.message, text, i, len(texts))
+        sent_message = await _send_text_option(call.message, text, i, len(texts))
+        text_message_ids.append(sent_message.message_id)
 
-    if not images:
-        await state.set_state(Form.result)
-        await call.message.answer(
-            "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
-            "Подборка хранится 5 минут.",
-            reply_markup=RESULT_KB,
-        )
+    generated = latest_generated.get(call.from_user.id)
+    if generated is not None:
+        generated["text_message_ids"] = text_message_ids
+
+    await state.set_state(Form.result)
+    await _upsert_selection_prompt(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        target_message=call.message,
+    )
 
 
 @dp.callback_query(F.data == "regenerate")
@@ -996,15 +1084,20 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
         )
 
     if regenerate_all:
+        text_message_ids: list[int] = []
         for i, text in enumerate(texts):
-            await _send_text_option(call.message, text, i, len(texts))
+            sent_message = await _send_text_option(call.message, text, i, len(texts))
+            text_message_ids.append(sent_message.message_id)
+        generated = latest_generated.get(call.from_user.id)
+        if generated is not None:
+            generated["text_message_ids"] = text_message_ids
 
     _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
     await state.set_state(Form.result)
-    await call.message.answer(
-        "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
-        "Подборка хранится 5 минут.",
-        reply_markup=RESULT_KB,
+    await _upsert_selection_prompt(
+        user_id=call.from_user.id,
+        chat_id=call.message.chat.id,
+        target_message=call.message,
     )
 
 
@@ -1012,28 +1105,34 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
 async def handle_pick_photo(call: CallbackQuery):
     generated = latest_generated.get(call.from_user.id)
     if not generated:
-        await call.answer("Варианты устарели. Сгенерируйте фото заново.", show_alert=True)
+        await _safe_answer_callback(call, "Варианты устарели. Сгенерируйте фото заново.", show_alert=True)
         return
 
     try:
         photo_index = int(call.data.split(":", 1)[1])
     except ValueError:
-        await call.answer("Некорректный выбор фото.", show_alert=True)
+        await _safe_answer_callback(call, "Некорректный выбор фото.", show_alert=True)
         return
 
     if photo_index >= len(generated.get("images", [])):
-        await call.answer("Это фото уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
+        await _safe_answer_callback(call, "Это фото уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
         return
 
     selected = set(_get_selected_photo_indices(generated))
+    is_selected = photo_index not in selected
     if photo_index in selected:
         selected.remove(photo_index)
         generated["selected_photo_indices"] = sorted(selected)
-        await call.answer("Фото убрано из подборки.")
+        await _safe_answer_callback(call, "Фото убрано из подборки.")
     else:
         selected.add(photo_index)
         generated["selected_photo_indices"] = sorted(selected)
-        await call.answer(f"Фото добавлено. Сейчас выбрано: {len(selected)}.")
+        await _safe_answer_callback(call, f"Фото добавлено. Сейчас выбрано: {len(selected)}.")
+
+    with suppress(TelegramBadRequest):
+        await call.message.edit_reply_markup(
+            reply_markup=photo_pick_kb(photo_index, selected=is_selected)
+        )
 
     await _show_publish_prompt(call)
 
@@ -1042,21 +1141,40 @@ async def handle_pick_photo(call: CallbackQuery):
 async def handle_pick_text(call: CallbackQuery):
     generated = latest_generated.get(call.from_user.id)
     if not generated:
-        await call.answer("Описания устарели. Сгенерируйте варианты заново.", show_alert=True)
+        await _safe_answer_callback(call, "Описания устарели. Сгенерируйте варианты заново.", show_alert=True)
         return
 
     try:
         text_index = int(call.data.split(":", 1)[1])
     except ValueError:
-        await call.answer("Некорректный выбор описания.", show_alert=True)
+        await _safe_answer_callback(call, "Некорректный выбор описания.", show_alert=True)
         return
 
     if text_index >= len(generated.get("texts", [])):
-        await call.answer("Это описание уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
+        await _safe_answer_callback(call, "Это описание уже недоступно. Сгенерируйте новые варианты.", show_alert=True)
         return
 
+    previous_text_index = generated.get("selected_text_index")
     generated["selected_text_index"] = text_index
-    await call.answer("Описание выбрано.")
+    await _safe_answer_callback(call, "Описание добавлено в подборку.")
+
+    with suppress(TelegramBadRequest):
+        await call.message.edit_reply_markup(
+            reply_markup=text_option_kb(text_index, selected=True)
+        )
+
+    text_message_ids = generated.get("text_message_ids") or []
+    if (
+        isinstance(previous_text_index, int)
+        and previous_text_index != text_index
+        and previous_text_index < len(text_message_ids)
+    ):
+        with suppress(TelegramBadRequest):
+            await bot.edit_message_reply_markup(
+                chat_id=call.message.chat.id,
+                message_id=text_message_ids[previous_text_index],
+                reply_markup=text_option_kb(previous_text_index, selected=False),
+            )
 
     await _show_publish_prompt(call)
 
@@ -1130,6 +1248,7 @@ async def handle_edit_text_submit(message: Message, state: FSMContext):
             text=updated_text,
             index=text_index,
             total=len(generated["texts"]),
+            selected=generated.get("selected_text_index") == text_index,
         )
 
     await state.update_data(
@@ -1144,11 +1263,11 @@ async def handle_edit_text_submit(message: Message, state: FSMContext):
     else:
         await message.answer("Описание обновлено и сохранено.")
 
-    if _is_ready_for_publish(generated):
-        await message.answer(
-            _build_selection_status(generated),
-            reply_markup=PUBLISH_KB,
-        )
+    await _upsert_selection_prompt(
+        user_id=message.from_user.id,
+        chat_id=message.chat.id,
+        target_message=message,
+    )
 
 
 @dp.message(Form.edit_text)
@@ -1180,14 +1299,11 @@ async def handle_publish_selected(call: CallbackQuery):
 @dp.callback_query(F.data == "help_contacts")
 @dp.callback_query(F.data.startswith("help_pet:"))
 async def handle_help_contacts(call: CallbackQuery):
-    pet_number: int | None = None
-    if call.data.startswith("help_pet:"):
-        try:
-            pet_number = int(call.data.split(":", 1)[1])
-        except ValueError:
-            logging.warning("Некорректный номер питомца в callback_data: %s", call.data)
-
-    await call.answer(_build_help_alert(pet_number=pet_number), show_alert=True)
+    await _safe_answer_callback(call)
+    await call.message.answer(
+        _build_help_message(),
+        disable_web_page_preview=True,
+    )
 
 
 @dp.callback_query(F.data == "start_over")
