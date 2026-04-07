@@ -27,16 +27,68 @@ HEALTH_NAMES = {
     "both": "привит и стерилизован",
     "unknown": "нет данных",
 }
+FEMALE_AGE_NAMES = {
+    "young": "молодая",
+    "adult": "взрослая",
+    "senior": "пожилая",
+}
+FEMALE_SIZE_NAMES = {
+    "small": "маленькая",
+    "medium": "средняя",
+    "large": "крупная",
+}
+FEMALE_CHARACTER_NAMES = {
+    "calm": "спокойная",
+    "playful": "игривая",
+    "affectionate": "ласковая",
+    "independent": "независимая",
+}
+FEMALE_HEALTH_NAMES = {
+    "vaccinated": "привита",
+    "sterilized": "стерилизована",
+    "both": "привита и стерилизована",
+}
+
+
+def _get_gendered_label(
+    raw_value: str,
+    base_names: dict[str, str],
+    *,
+    sex: str,
+    female_names: dict[str, str] | None = None,
+    default: str = "—",
+) -> str:
+    base_value = base_names.get(raw_value, default)
+    if sex == "female" and female_names:
+        return female_names.get(raw_value, base_value)
+    return base_value
+
+
+def get_profile_labels(data: dict) -> dict[str, str]:
+    sex = data.get("sex", "")
+    return {
+        "animal": ANIMAL_NAMES.get(data.get("animal_type", ""), "животное"),
+        "sex": SEX_NAMES.get(sex, "—"),
+        "age": _get_gendered_label(data.get("age", ""), AGE_NAMES, sex=sex, female_names=FEMALE_AGE_NAMES),
+        "size": _get_gendered_label(data.get("size", ""), SIZE_NAMES, sex=sex, female_names=FEMALE_SIZE_NAMES),
+        "character": _get_gendered_label(
+            data.get("character", ""),
+            CHARACTER_NAMES,
+            sex=sex,
+            female_names=FEMALE_CHARACTER_NAMES,
+        ),
+        "health": _get_gendered_label(
+            data.get("health", ""),
+            HEALTH_NAMES,
+            sex=sex,
+            female_names=FEMALE_HEALTH_NAMES,
+        ),
+    }
 
 
 def _build_profile(data: dict) -> str:
     name = data.get("name", "").strip()
-    animal = ANIMAL_NAMES.get(data.get("animal_type", ""), "животное")
-    sex = SEX_NAMES.get(data.get("sex", ""), "")
-    age = AGE_NAMES.get(data.get("age", ""), "")
-    size = SIZE_NAMES.get(data.get("size", ""), "")
-    character = CHARACTER_NAMES.get(data.get("character", ""), "")
-    health = HEALTH_NAMES.get(data.get("health", ""), "")
+    labels = get_profile_labels(data)
     comments = data.get("comments", "")
 
     parts = []
@@ -45,12 +97,12 @@ def _build_profile(data: dict) -> str:
 
     parts.extend(
         [
-            f"Тип: {animal}",
-            f"Пол: {sex}",
-            f"Возраст: {age}",
-            f"Размер: {size}",
-            f"Характер: {character}",
-            f"Здоровье: {health}",
+            f"Тип: {labels['animal']}",
+            f"Пол: {labels['sex']}",
+            f"Возраст: {labels['age']}",
+            f"Размер: {labels['size']}",
+            f"Характер: {labels['character']}",
+            f"Здоровье: {labels['health']}",
         ]
     )
 

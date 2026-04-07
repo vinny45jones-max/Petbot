@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from contextlib import suppress
 import json
 import logging
 from io import BytesIO
@@ -28,11 +29,8 @@ from config import (
 from image_service import generate_images
 from PIL import Image, ImageDraw, ImageFont, ImageStat
 from text_service import (
-    AGE_NAMES,
-    CHARACTER_NAMES,
-    HEALTH_NAMES,
-    SIZE_NAMES,
     generate_texts,
+    get_profile_labels,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -41,9 +39,25 @@ bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 latest_sessions: dict[int, dict] = {}
 latest_generated: dict[int, dict] = {}
+generation_expiry_tasks: dict[int, asyncio.Task] = {}
 SESSIONS_FILE = Path("latest_sessions.json")
-PET_COUNTER_FILE = Path("pet_counter.txt")
-pet_counter_lock: asyncio.Lock | None = None
+GENERATION_TTL_SECONDS = 5 * 60
+LOADING_FRAME_DELAY_SECONDS = 0.8
+START_PROMPT_TEXT = (
+    "Привет! Я помогу создать красивое объявление для пристройки питомца.\n\n"
+    "Пришлите фото животного — кошки или собаки.\n"
+    "Отправьте его через галерею или скрепку в Telegram."
+)
+GENERATION_EXPIRED_TEXT = (
+    "Прошло 5 минут после генерации. Текущая подборка очищена, чтобы не работать "
+    "с устаревшими вариантами.\n\n"
+    "Пришлите новое фото животного, чтобы начать заново."
+)
+LOADING_FRAMES = (
+    "Магия\u00A0\u00A0.",
+    "Магия\u00A0..",
+    "Магия...",
+)
 
 
 class Form(StatesGroup):
@@ -117,54 +131,81 @@ def _get_latest_session(user_id: int) -> dict:
     return latest_sessions.get(user_id, {}).copy()
 
 
-def _load_pet_counter() -> int:
-    if not PET_COUNTER_FILE.exists():
-        return 1
+def _drop_latest_session(user_id: int) -> None:
+    if latest_sessions.pop(user_id, None) is not None:
+        _save_latest_sessions()
 
+
+def _cancel_generation_expiry(user_id: int) -> None:
+    task = generation_expiry_tasks.pop(user_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def _reset_user_flow(
+    user_id: int,
+    state: FSMContext,
+    *,
+    cancel_expiry: bool = True,
+) -> None:
+    if cancel_expiry:
+        _cancel_generation_expiry(user_id)
+
+    latest_generated.pop(user_id, None)
+    _drop_latest_session(user_id)
+    await state.clear()
+    await state.set_state(Form.photo)
+
+
+async def _expire_generated_results(user_id: int) -> None:
     try:
-        raw_value = PET_COUNTER_FILE.read_text(encoding="utf-8").strip()
-        next_number = int(raw_value)
-        return next_number if next_number > 0 else 1
-    except (OSError, ValueError):
-        logging.exception("Не удалось загрузить pet_counter.txt")
-        return 1
+        await asyncio.sleep(GENERATION_TTL_SECONDS)
+        state = dp.fsm.get_context(bot=bot, chat_id=user_id, user_id=user_id)
+        await _reset_user_flow(user_id, state, cancel_expiry=False)
+        await bot.send_message(user_id, GENERATION_EXPIRED_TEXT, reply_markup=START_KB)
+    except asyncio.CancelledError:
+        return
+    except Exception:
+        logging.exception("Не удалось автоматически очистить подборку пользователя %s", user_id)
+    finally:
+        current_task = generation_expiry_tasks.get(user_id)
+        if current_task is asyncio.current_task():
+            generation_expiry_tasks.pop(user_id, None)
 
 
-def _save_pet_counter(next_number: int) -> None:
+def _schedule_generation_expiry(user_id: int) -> None:
+    _cancel_generation_expiry(user_id)
+    generation_expiry_tasks[user_id] = asyncio.create_task(_expire_generated_results(user_id))
+
+
+async def _animate_loading_message(message: Message) -> None:
+    frame_index = 1
     try:
-        PET_COUNTER_FILE.write_text(str(next_number), encoding="utf-8")
-    except OSError:
-        logging.exception("Не удалось сохранить pet_counter.txt")
+        while True:
+            await asyncio.sleep(LOADING_FRAME_DELAY_SECONDS)
+            await message.edit_text(LOADING_FRAMES[frame_index])
+            frame_index = (frame_index + 1) % len(LOADING_FRAMES)
+    except asyncio.CancelledError:
+        return
+    except Exception:
+        logging.debug("Не удалось обновить индикатор загрузки", exc_info=True)
 
 
-def _get_pet_counter_lock() -> asyncio.Lock:
-    global pet_counter_lock
-    if pet_counter_lock is None:
-        pet_counter_lock = asyncio.Lock()
-    return pet_counter_lock
-
-
-async def _ensure_pet_number(user_id: int, session: dict) -> int:
-    pet_number = session.get("pet_number")
-    if isinstance(pet_number, int) and pet_number > 0:
-        return pet_number
-
-    global next_pet_number
-    async with _get_pet_counter_lock():
-        pet_number = next_pet_number
-        next_pet_number += 1
-        _save_pet_counter(next_pet_number)
-
-    session["pet_number"] = pet_number
-    _set_latest_session(user_id, session)
-    return pet_number
+async def _start_loading_animation(message: Message) -> asyncio.Task:
+    await message.edit_text(LOADING_FRAMES[0])
+    return asyncio.create_task(_animate_loading_message(message))
 
 
 START_KB = kb([("ℹ️ Как это работает", "start_help")])
-RESULT_KB = kb([("🔁 Перегенерировать", "regenerate")])
-PUBLISH_KB = kb([("📤 Отправить в канал", "publish_selected"), ("🔁 Перегенерировать", "regenerate")])
+RESULT_KB = kb([("🔁 Перегенерировать", "regenerate"), ("🆕 Начать заново", "start_over")])
+PUBLISH_KB = kb(
+    [
+        ("📤 Отправить в канал", "publish_selected"),
+        ("🔁 Перегенерировать", "regenerate"),
+        ("🆕 Начать заново", "start_over"),
+    ]
+)
 latest_sessions.update(_load_latest_sessions())
-next_pet_number = _load_pet_counter()
 
 
 def photo_pick_kb(index: int) -> InlineKeyboardMarkup:
@@ -261,27 +302,97 @@ def _build_selection_status(generated: dict) -> str:
     return "Сначала выберите хотя бы одно фото и одно описание."
 
 
-def _get_display_value(mapping: dict[str, str], raw_value: str) -> str:
-    return mapping.get(raw_value, "—")
+def _choice_state_prompt(state_name: str | None) -> tuple[str, InlineKeyboardMarkup] | None:
+    prompts = {
+        Form.animal_type.state: (
+            "Кто это? Выберите вариант кнопкой ниже.",
+            kb([("🐱 Кошка", "cat"), ("🐶 Собака", "dog")]),
+        ),
+        Form.sex.state: (
+            "Пол животного? Выберите кнопку ниже.",
+            kb([("♂ Самец", "male"), ("♀ Самка", "female")]),
+        ),
+        Form.age.state: (
+            "Возраст? Выберите один вариант кнопкой.",
+            kb([
+                ("🍼 Котёнок / Щенок", "baby"),
+                ("🌱 Молодой", "young"),
+                ("🐾 Взрослый", "adult"),
+                ("🌿 Пожилой", "senior"),
+            ]),
+        ),
+        Form.size.state: (
+            "Размер? Выберите кнопку ниже.",
+            kb([
+                ("🤏 Маленький", "small"),
+                ("🐕 Средний", "medium"),
+                ("🦁 Крупный", "large"),
+            ]),
+        ),
+        Form.character.state: (
+            "Характер? Выберите одну кнопку.",
+            kb([
+                ("😌 Спокойный", "calm"),
+                ("⚡ Игривый", "playful"),
+                ("🥰 Ласковый", "affectionate"),
+                ("😎 Независимый", "independent"),
+            ]),
+        ),
+        Form.health.state: (
+            "Здоровье? Выберите вариант кнопкой.",
+            kb([
+                ("💉 Привит", "vaccinated"),
+                ("✂️ Стерилизован", "sterilized"),
+                ("💉✂️ Привит + Стерилизован", "both"),
+                ("❓ Нет данных", "unknown"),
+            ]),
+        ),
+    }
+    return prompts.get(state_name)
 
 
 def _format_text_option(text: str, index: int, total: int) -> str:
     return f"Описание {index + 1} из {total}\n\n{text.strip()}"
 
 
+async def _download_telegram_file_bytes(file_id: str) -> bytes:
+    file = await bot.get_file(file_id)
+    file_bytes = await bot.download_file(file.file_path)
+    return file_bytes.read()
+
+
+def _is_supported_image_document(message: Message) -> bool:
+    document = message.document
+    if not document:
+        return False
+
+    mime_type = (document.mime_type or "").lower()
+    file_name = (document.file_name or "").lower()
+    return mime_type in {"image/jpeg", "image/png", "image/webp"} or file_name.endswith(
+        (".jpg", ".jpeg", ".png", ".webp")
+    )
+
+
+def _is_unsupported_phone_image(message: Message) -> bool:
+    document = message.document
+    if not document:
+        return False
+
+    mime_type = (document.mime_type or "").lower()
+    file_name = (document.file_name or "").lower()
+    return mime_type in {"image/heic", "image/heif"} or file_name.endswith((".heic", ".heif"))
+
+
 def _build_photo_overlay_text(session: dict) -> str:
     name = session.get("name", "").strip() or "Без клички"
-    age = _get_display_value(AGE_NAMES, session.get("age", ""))
-    size = _get_display_value(SIZE_NAMES, session.get("size", ""))
-    character = _get_display_value(CHARACTER_NAMES, session.get("character", ""))
-    health = _get_display_value(HEALTH_NAMES, session.get("health", ""))
+    labels = get_profile_labels(session)
 
     lines = [
         f"Кличка: {name}",
-        f"Возраст: {age}",
-        f"Размер: {size}",
-        f"Характер: {character}",
-        f"Здоровье: {health}",
+        f"Возраст: {labels['age']}",
+        f"Размер: {labels['size']}",
+        f"Характер: {labels['character']}",
+        f"Здоровье: {labels['health']}",
     ]
     return "\n".join(lines)
 
@@ -349,24 +460,25 @@ def _overlay_text_on_photo(image_bytes: bytes, session: dict) -> bytes:
     return output.getvalue()
 
 
-def _build_post_header(pet_name: str, pet_number: int) -> str:
+def _build_post_header(pet_name: str) -> str:
     clean_name = pet_name.strip()
     if clean_name and clean_name != "Без клички":
-        return f"{clean_name} №{pet_number}"
-    return f"№{pet_number}"
+        return clean_name
+    return ""
 
 
-def _build_channel_post_text(*, pet_number: int, pet_name: str, description: str) -> str:
-    return "\n\n".join([_build_post_header(pet_name, pet_number), description.strip()]).strip()
+def _build_channel_post_text(*, pet_name: str, description: str) -> str:
+    parts = [_build_post_header(pet_name), description.strip()]
+    return "\n\n".join(part for part in parts if part).strip()
 
 
-def _build_help_alert(pet_number: int) -> str:
-    parts = [f"№{pet_number}"]
+def _build_help_alert() -> str:
+    parts: list[str] = []
     if CARD_NUMBER:
         parts.append(f"Карта: {CARD_NUMBER}")
     if CONTACT_PHONE:
         parts.append(f"Телефон: {CONTACT_PHONE}")
-    if len(parts) == 1:
+    if not parts:
         parts.append("Контакты пока не настроены.")
     return "\n".join(parts)
 
@@ -375,7 +487,6 @@ async def _send_selected_images(
     channel_id: str,
     images: list[bytes],
     photo_indices: list[int],
-    pet_number: int,
     session: dict,
 ) -> None:
     selected_images = [_overlay_text_on_photo(images[index], session) for index in photo_indices]
@@ -383,14 +494,12 @@ async def _send_selected_images(
     if len(selected_images) == 1:
         await bot.send_photo(
             channel_id,
-            BufferedInputFile(selected_images[0], filename=f"pet_{pet_number}_1.png"),
+            BufferedInputFile(selected_images[0], filename="pet_selected_1.png"),
         )
         return
 
     media = [
-        InputMediaPhoto(
-            media=BufferedInputFile(image_bytes, filename=f"pet_{pet_number}_{position}.png")
-        )
+        InputMediaPhoto(media=BufferedInputFile(image_bytes, filename=f"pet_selected_{position}.png"))
         for position, image_bytes in enumerate(selected_images, start=1)
     ]
     await bot.send_media_group(channel_id, media=media)
@@ -438,10 +547,8 @@ async def _publish_selected_post(call: CallbackQuery) -> bool:
         return True
 
     session = _get_latest_session(user_id)
-    pet_number = await _ensure_pet_number(user_id, session)
     pet_name = session.get("name", "").strip() or "Без клички"
     post_text = _build_channel_post_text(
-        pet_number=pet_number,
         pet_name=pet_name,
         description=texts[text_index],
     )
@@ -450,13 +557,12 @@ async def _publish_selected_post(call: CallbackQuery) -> bool:
         TELEGRAM_SPECIAL_CHANNEL_ID,
         images,
         photo_indices,
-        pet_number,
         session,
     )
     await bot.send_message(
         TELEGRAM_SPECIAL_CHANNEL_ID,
         post_text,
-        reply_markup=kb([("❤️ Помочь", f"help_pet:{pet_number}")]),
+        reply_markup=kb([("❤️ Помочь", "help_contacts")]),
     )
 
     generated["last_post_key"] = post_key
@@ -466,14 +572,8 @@ async def _publish_selected_post(call: CallbackQuery) -> bool:
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    await state.clear()
-    await state.set_state(Form.photo)
-    await message.answer(
-        "Привет! Я помогу создать красивое объявление для пристройки питомца.\n\n"
-        "Пришлите фото животного — кошки или собаки.\n"
-        "Отправьте его через галерею или скрепку в Telegram.",
-        reply_markup=START_KB,
-    )
+    await _reset_user_flow(message.from_user.id, state)
+    await message.answer(START_PROMPT_TEXT, reply_markup=START_KB)
 
 
 @dp.callback_query(Form.photo, F.data == "start_help")
@@ -492,9 +592,7 @@ async def handle_start_help(call: CallbackQuery):
 @dp.message(Form.photo, F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     photo = message.photo[-1]
-    file = await bot.get_file(photo.file_id)
-    file_bytes = await bot.download_file(file.file_path)
-    await state.update_data(photo_bytes=file_bytes.read())
+    await state.update_data(photo_bytes=await _download_telegram_file_bytes(photo.file_id))
     await state.set_state(Form.name)
     await message.answer(
         "Как зовут питомца? Напишите кличку текстом или пропустите.",
@@ -503,8 +601,53 @@ async def handle_photo(message: Message, state: FSMContext):
 
 
 @dp.message(Form.photo)
+async def handle_photo_mobile_entry(message: Message, state: FSMContext):
+    if _is_supported_image_document(message):
+        await state.update_data(photo_bytes=await _download_telegram_file_bytes(message.document.file_id))
+        await state.set_state(Form.name)
+        await message.answer(
+            "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите.",
+            reply_markup=kb([("⏭ Пропустить", "skip_name")]),
+        )
+        return
+
+    if _is_unsupported_phone_image(message):
+        await message.answer(
+            "Файл HEIC/HEIF не поддерживается. Отправьте снимок как обычное фото через галерею Telegram, не как файл."
+        )
+        return
+
+    await message.answer(
+        "Пожалуйста, пришлите фото животного. Лучше отправлять его как обычное фото через галерею Telegram, а не как файл."
+    )
+
+
+@dp.message(Form.photo)
 async def handle_photo_wrong(message: Message):
     await message.answer("Пожалуйста, пришлите фото (не файл и не текст).")
+
+
+@dp.message(Form.photo, lambda message: _is_supported_image_document(message))
+async def handle_photo_document(message: Message, state: FSMContext):
+    await state.update_data(photo_bytes=await _download_telegram_file_bytes(message.document.file_id))
+    await state.set_state(Form.name)
+    await message.answer(
+        "Фото получено. Как зовут питомца? Напишите кличку текстом или пропустите.",
+        reply_markup=kb([("⏭ Пропустить", "skip_name")]),
+    )
+
+
+@dp.message(Form.photo)
+async def handle_photo_wrong(message: Message):
+    if _is_unsupported_phone_image(message):
+        await message.answer(
+            "Файл HEIC/HEIF не поддерживается. Отправьте снимок как обычное фото через галерею Telegram, не как файл."
+        )
+        return
+
+    await message.answer(
+        "Пожалуйста, пришлите фото животного. Лучше отправлять его как обычное фото через галерею Telegram, а не как файл."
+    )
 
 
 async def ask_animal_type(target: Message | CallbackQuery, state: FSMContext) -> None:
@@ -619,6 +762,21 @@ async def handle_health(call: CallbackQuery, state: FSMContext):
     )
 
 
+@dp.message(Form.animal_type)
+@dp.message(Form.sex)
+@dp.message(Form.age)
+@dp.message(Form.size)
+@dp.message(Form.character)
+@dp.message(Form.health)
+async def handle_button_only_states_wrong(message: Message, state: FSMContext):
+    prompt = _choice_state_prompt(await state.get_state())
+    if not prompt:
+        return
+
+    text, reply_markup = prompt
+    await message.answer(text, reply_markup=reply_markup)
+
+
 @dp.callback_query(Form.comments, F.data == "skip_comments")
 async def handle_skip_comments(call: CallbackQuery, state: FSMContext):
     await state.update_data(comments="")
@@ -639,6 +797,14 @@ async def handle_comments_text(message: Message, state: FSMContext):
     )
 
 
+@dp.message(Form.comments)
+async def handle_comments_wrong(message: Message):
+    await message.answer(
+        "Напишите комментарий текстом или нажмите «Пропустить».",
+        reply_markup=kb([("⏭ Пропустить", "skip_comments")]),
+    )
+
+
 @dp.callback_query(F.data == "generate")
 async def handle_generate(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -649,8 +815,9 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
         return
 
     _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
+    _cancel_generation_expiry(call.from_user.id)
 
-    await call.message.edit_text("Магия началась, минуточку терпения).")
+    loading_task = await _start_loading_animation(call.message)
 
     try:
         images, texts = await asyncio.gather(
@@ -664,6 +831,10 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
         )
         await state.clear()
         return
+    finally:
+        loading_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await loading_task
 
     if not images or not texts:
         latest_generated.pop(call.from_user.id, None)
@@ -686,6 +857,7 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
         reset_photo=True,
         reset_text=True,
     )
+    _schedule_generation_expiry(call.from_user.id)
 
     if images:
         for i, img_bytes in enumerate(images, 1):
@@ -696,7 +868,8 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
             )
         await state.set_state(Form.result)
         await call.message.answer(
-            "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+            "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
+            "Подборка хранится 5 минут.",
             reply_markup=RESULT_KB,
         )
 
@@ -706,7 +879,8 @@ async def handle_generate(call: CallbackQuery, state: FSMContext):
     if not images:
         await state.set_state(Form.result)
         await call.message.answer(
-            "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+            "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
+            "Подборка хранится 5 минут.",
             reply_markup=RESULT_KB,
         )
 
@@ -726,7 +900,8 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
         return
 
     await call.answer()
-    await call.message.edit_text("Магия началась, минуточку терпения).")
+    _cancel_generation_expiry(call.from_user.id)
+    loading_task = await _start_loading_animation(call.message)
 
     try:
         if regenerate_all:
@@ -743,6 +918,10 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
             "Не удалось перегенерировать материалы. Попробуйте ещё раз через минуту или начните заново с /start."
         )
         return
+    finally:
+        loading_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await loading_task
 
     if not images or not texts:
         latest_generated.pop(call.from_user.id, None)
@@ -765,6 +944,7 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
         reset_photo=True,
         reset_text=regenerate_all,
     )
+    _schedule_generation_expiry(call.from_user.id)
 
     for i, img_bytes in enumerate(images, 1):
         await call.message.answer_photo(
@@ -780,7 +960,8 @@ async def handle_regenerate(call: CallbackQuery, state: FSMContext):
     _set_latest_session(call.from_user.id, {**data, "photo_bytes": photo_bytes})
     await state.set_state(Form.result)
     await call.message.answer(
-        "Если ни один вариант не подошёл, нажмите «Перегенерировать».",
+        "Если ни один вариант не подошёл, нажмите «Перегенерировать». "
+        "Подборка хранится 5 минут.",
         reply_markup=RESULT_KB,
     )
 
@@ -933,6 +1114,16 @@ async def handle_edit_text_wrong(message: Message):
     await message.answer("Пришлите новый текст описания одним сообщением.")
 
 
+@dp.message(Form.result)
+async def handle_result_wrong(message: Message):
+    generated = latest_generated.get(message.from_user.id)
+    await message.answer(
+        "На этом шаге используйте кнопки: выберите фото, описание, нажмите "
+        "«Перегенерировать» или «Начать заново».",
+        reply_markup=PUBLISH_KB if _is_ready_for_publish(generated) else RESULT_KB,
+    )
+
+
 @dp.callback_query(F.data == "publish_selected")
 async def handle_publish_selected(call: CallbackQuery):
     generated = latest_generated.get(call.from_user.id)
@@ -944,15 +1135,17 @@ async def handle_publish_selected(call: CallbackQuery):
     await _publish_selected_post(call)
 
 
+@dp.callback_query(F.data == "help_contacts")
 @dp.callback_query(F.data.startswith("help_pet:"))
-async def handle_help_pet(call: CallbackQuery):
-    try:
-        pet_number = int(call.data.split(":", 1)[1])
-    except ValueError:
-        await call.answer("Не удалось открыть контакты.", show_alert=True)
-        return
+async def handle_help_contacts(call: CallbackQuery):
+    await call.answer(_build_help_alert(), show_alert=True)
 
-    await call.answer(_build_help_alert(pet_number), show_alert=True)
+
+@dp.callback_query(F.data == "start_over")
+async def handle_start_over(call: CallbackQuery, state: FSMContext):
+    await call.answer("Текущая сессия очищена.")
+    await _reset_user_flow(call.from_user.id, state)
+    await call.message.answer(START_PROMPT_TEXT, reply_markup=START_KB)
 
 
 @dp.callback_query()
