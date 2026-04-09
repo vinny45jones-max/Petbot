@@ -7,3 +7,6 @@ __pycache__/
 venv/
 bot_runtime.out
 bot_runtime.err
+bot.log
+bot.lock
+bot_output.log

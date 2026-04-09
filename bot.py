@@ -347,6 +347,25 @@ async def _safe_answer_callback(
         logging.debug("Не удалось ответить на callback: query устарел", exc_info=True)
 
 
+def _is_message_not_modified(exc: TelegramBadRequest) -> bool:
+    return "message is not modified" in str(exc).lower()
+
+
+async def _safe_edit_message_text(
+    message: Message,
+    text: str,
+    *,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> bool:
+    try:
+        await message.edit_text(text, reply_markup=reply_markup)
+        return True
+    except TelegramBadRequest as exc:
+        if _is_message_not_modified(exc):
+            return False
+        raise
+
+
 async def _upsert_selection_prompt(
     *,
     user_id: int,
@@ -372,7 +391,7 @@ async def _upsert_selection_prompt(
             )
             return
         except TelegramBadRequest as exc:
-            if "message is not modified" in str(exc).lower():
+            if _is_message_not_modified(exc):
                 return
 
     if target_message is None:
@@ -734,8 +753,9 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @dp.callback_query(Form.photo, F.data == "start_help")
 async def handle_start_help(call: CallbackQuery):
-    await call.answer()
-    await call.message.edit_text(
+    await _safe_answer_callback(call)
+    await _safe_edit_message_text(
+        call.message,
         _build_start_help_text(),
         reply_markup=START_KB,
     )
@@ -774,7 +794,9 @@ async def handle_photo_wrong(message: Message):
 async def ask_animal_type(target: Message | CallbackQuery, state: FSMContext) -> None:
     await state.set_state(Form.animal_type)
     if isinstance(target, CallbackQuery):
-        await target.message.edit_text(
+        await _safe_answer_callback(target)
+        await _safe_edit_message_text(
+            target.message,
             "Кто это?",
             reply_markup=kb([("🐱 Кошка", "cat"), ("🐶 Собака", "dog")]),
         )
@@ -829,9 +851,11 @@ async def recover_name_without_state(message: Message, state: FSMContext):
 
 @dp.callback_query(Form.animal_type, F.data.in_({"cat", "dog"}))
 async def handle_animal_type(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(animal_type=call.data)
     await state.set_state(Form.sex)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Пол животного?",
         reply_markup=kb([("♂ Самец", "male"), ("♀ Самка", "female")]),
     )
@@ -839,9 +863,11 @@ async def handle_animal_type(call: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.sex, F.data.in_({"male", "female"}))
 async def handle_sex(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(sex=call.data)
     await state.set_state(Form.age)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Возраст?",
         reply_markup=kb([
             ("🍼 Котёнок / Щенок", "baby"),
@@ -854,9 +880,11 @@ async def handle_sex(call: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.age, F.data.in_({"baby", "young", "adult", "senior"}))
 async def handle_age(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(age=call.data)
     await state.set_state(Form.size)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Размер?",
         reply_markup=kb([
             ("🤏 Маленький", "small"),
@@ -868,9 +896,11 @@ async def handle_age(call: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.size, F.data.in_({"small", "medium", "large"}))
 async def handle_size(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(size=call.data)
     await state.set_state(Form.character)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Характер?",
         reply_markup=kb([
             ("😌 Спокойный", "calm"),
@@ -883,9 +913,11 @@ async def handle_size(call: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.character, F.data.in_({"calm", "playful", "affectionate", "independent"}))
 async def handle_character(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(character=call.data)
     await state.set_state(Form.health)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Здоровье?",
         reply_markup=kb([
             ("💉 Привит", "vaccinated"),
@@ -898,9 +930,11 @@ async def handle_character(call: CallbackQuery, state: FSMContext):
 
 @dp.callback_query(Form.health, F.data.in_({"vaccinated", "sterilized", "both", "unknown"}))
 async def handle_health(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(health=call.data)
     await state.set_state(Form.comments)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Есть особые комментарии? Напишите или пропустите.",
         reply_markup=kb([("⏭ Пропустить", "skip_comments")]),
     )
@@ -923,9 +957,11 @@ async def handle_button_only_states_wrong(message: Message, state: FSMContext):
 
 @dp.callback_query(Form.comments, F.data == "skip_comments")
 async def handle_skip_comments(call: CallbackQuery, state: FSMContext):
+    await _safe_answer_callback(call)
     await state.update_data(comments="")
     await state.set_state(Form.result)
-    await call.message.edit_text(
+    await _safe_edit_message_text(
+        call.message,
         "Всё готово! Запускаю генерацию.",
         reply_markup=kb([("🚀 Генерировать", "generate")]),
     )
