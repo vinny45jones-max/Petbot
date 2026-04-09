@@ -22,6 +22,7 @@ from aiogram.types import (
 )
 
 from config import (
+    BOT_DATA_DIR,
     CARD_NUMBER,
     CONTACT_PHONE,
     TELEGRAM_BOT_TOKEN,
@@ -41,8 +42,9 @@ dp = Dispatcher(storage=MemoryStorage())
 latest_sessions: dict[int, dict] = {}
 latest_generated: dict[int, dict] = {}
 generation_expiry_tasks: dict[int, asyncio.Task] = {}
-SESSIONS_FILE = Path("latest_sessions.json")
-PET_COUNTER_FILE = Path("pet_counter.txt")
+BOT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+SESSIONS_FILE = BOT_DATA_DIR / "latest_sessions.json"
+PET_COUNTER_FILE = BOT_DATA_DIR / "pet_counter.txt"
 GENERATION_TTL_SECONDS = 5 * 60
 LOADING_FRAME_DELAY_SECONDS = 0.8
 START_PROMPT_TEXT = (

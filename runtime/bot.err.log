@@ -1,3 +1,5 @@
 INFO:aiogram.dispatcher:Start polling
 INFO:aiogram.dispatcher:Run polling for bot @Irapet_bot id=8457789373 - 'Beauty Cat\U0001f63a'
 INFO:aiogram.event:Update id=114964608 is not handled. Duration 0 ms by bot id=8457789373
+INFO:aiogram.event:Update id=114964611 is handled. Duration 702 ms by bot id=8457789373
+INFO:aiogram.event:Update id=114964612 is handled. Duration 625 ms by bot id=8457789373

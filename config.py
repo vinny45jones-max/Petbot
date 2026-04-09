@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,6 +10,7 @@ TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "").strip()
 TELEGRAM_SPECIAL_CHANNEL_ID = os.getenv("TELEGRAM_SPECIAL_CHANNEL_ID", "").strip() or TELEGRAM_CHANNEL_ID
 CONTACT_PHONE = os.getenv("CONTACT_PHONE", "")
 CARD_NUMBER = os.getenv("CARD_NUMBER", "")
+BOT_DATA_DIR = Path(os.getenv("BOT_DATA_DIR", ".")).expanduser()
 
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не задан в .env")

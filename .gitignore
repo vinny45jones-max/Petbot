@@ -10,3 +10,5 @@ bot_runtime.err
 bot.log
 bot.lock
 bot_output.log
+runtime/
+*.pid
