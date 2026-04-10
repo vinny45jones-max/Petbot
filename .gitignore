@@ -12,3 +12,12 @@ bot.lock
 bot_output.log
 runtime/
 *.pid
+start_bot.bat
+stop_bot.bat
+status_bot.bat
+start_bot.ps1
+stop_bot.ps1
+status_bot.ps1
+bot_supervisor.py
+run_bot.pyw
+.claude/
