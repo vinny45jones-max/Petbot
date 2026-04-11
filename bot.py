@@ -3,6 +3,7 @@ import base64
 from contextlib import suppress
 import json
 import logging
+import os
 from io import BytesIO
 from pathlib import Path
 
@@ -1379,4 +1380,10 @@ async def main():
 
 
 if __name__ == "__main__":
+    if not os.getenv("RAILWAY_ENVIRONMENT"):
+        print(
+            "Ошибка: бот должен запускаться только на Railway.\n"
+            "Локальный запуск отключён, чтобы избежать конфликта polling-инстансов."
+        )
+        raise SystemExit(1)
     asyncio.run(main())
