@@ -199,11 +199,15 @@ def _cancel_inactivity_timer(user_id: int) -> None:
 
 async def _expire_by_inactivity(user_id: int) -> None:
     try:
+        logging.info("Inactivity timer armed for user %s (ttl=%ss)", user_id, INACTIVITY_TTL_SECONDS)
         await asyncio.sleep(INACTIVITY_TTL_SECONDS)
+        logging.info("Inactivity timer fired for user %s — resetting session", user_id)
         state = dp.fsm.get_context(bot=bot, chat_id=user_id, user_id=user_id)
         await _reset_user_flow(user_id, state)
         await bot.send_message(user_id, START_PROMPT_TEXT, reply_markup=START_KB)
+        logging.info("Inactivity reset completed for user %s", user_id)
     except asyncio.CancelledError:
+        logging.info("Inactivity timer cancelled for user %s", user_id)
         return
     except Exception:
         logging.exception("Не удалось сбросить сессию по бездействию для пользователя %s", user_id)
