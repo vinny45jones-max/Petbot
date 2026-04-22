@@ -59,6 +59,11 @@ GENERATION_EXPIRED_TEXT = (
     "с устаревшими вариантами.\n\n"
     "Пришлите новое фото животного, чтобы начать заново."
 )
+INACTIVITY_RESET_TEXT = (
+    "⏰ Прошло 5 минут без активности — сессия автоматически перезапущена.\n\n"
+    "Пришлите фото животного — кошки или собаки.\n"
+    "Отправьте его через галерею или скрепку в Telegram."
+)
 LOADING_FRAMES = (
     "Магия 🪄🧚.",
     "Магия 🪄🧚..",
@@ -204,7 +209,7 @@ async def _expire_by_inactivity(user_id: int) -> None:
         logging.info("Inactivity timer fired for user %s — resetting session", user_id)
         state = dp.fsm.get_context(bot=bot, chat_id=user_id, user_id=user_id)
         await _reset_user_flow(user_id, state)
-        await bot.send_message(user_id, START_PROMPT_TEXT, reply_markup=START_KB)
+        await bot.send_message(user_id, INACTIVITY_RESET_TEXT, reply_markup=START_KB)
         logging.info("Inactivity reset completed for user %s", user_id)
     except asyncio.CancelledError:
         logging.info("Inactivity timer cancelled for user %s", user_id)
