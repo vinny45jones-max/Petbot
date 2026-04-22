@@ -42,10 +42,12 @@ dp = Dispatcher(storage=MemoryStorage())
 latest_sessions: dict[int, dict] = {}
 latest_generated: dict[int, dict] = {}
 generation_expiry_tasks: dict[int, asyncio.Task] = {}
+inactivity_tasks: dict[int, asyncio.Task] = {}
 BOT_DATA_DIR.mkdir(parents=True, exist_ok=True)
 SESSIONS_FILE = BOT_DATA_DIR / "latest_sessions.json"
 PET_COUNTER_FILE = BOT_DATA_DIR / "pet_counter.txt"
 GENERATION_TTL_SECONDS = 5 * 60
+INACTIVITY_TTL_SECONDS = 5 * 60
 LOADING_FRAME_DELAY_SECONDS = 0.8
 START_PROMPT_TEXT = (
     "Привет! Я помогу создать красивое объявление для пристройки питомца.\n\n"
@@ -160,6 +162,7 @@ async def _reset_user_flow(
 ) -> None:
     if cancel_expiry:
         _cancel_generation_expiry(user_id)
+        _cancel_inactivity_timer(user_id)
 
     latest_generated.pop(user_id, None)
     _drop_latest_session(user_id)
@@ -186,6 +189,33 @@ async def _expire_generated_results(user_id: int) -> None:
 def _schedule_generation_expiry(user_id: int) -> None:
     _cancel_generation_expiry(user_id)
     generation_expiry_tasks[user_id] = asyncio.create_task(_expire_generated_results(user_id))
+
+
+def _cancel_inactivity_timer(user_id: int) -> None:
+    task = inactivity_tasks.pop(user_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def _expire_by_inactivity(user_id: int) -> None:
+    try:
+        await asyncio.sleep(INACTIVITY_TTL_SECONDS)
+        state = dp.fsm.get_context(bot=bot, chat_id=user_id, user_id=user_id)
+        await _reset_user_flow(user_id, state)
+        await bot.send_message(user_id, START_PROMPT_TEXT, reply_markup=START_KB)
+    except asyncio.CancelledError:
+        return
+    except Exception:
+        logging.exception("Не удалось сбросить сессию по бездействию для пользователя %s", user_id)
+    finally:
+        current_task = inactivity_tasks.get(user_id)
+        if current_task is asyncio.current_task():
+            inactivity_tasks.pop(user_id, None)
+
+
+def _schedule_inactivity_timer(user_id: int) -> None:
+    _cancel_inactivity_timer(user_id)
+    inactivity_tasks[user_id] = asyncio.create_task(_expire_by_inactivity(user_id))
 
 
 async def _animate_loading_message(message: Message) -> None:
@@ -1372,6 +1402,14 @@ async def handle_start_over(call: CallbackQuery, state: FSMContext):
 @dp.callback_query()
 async def handle_unknown_callback(call: CallbackQuery):
     await call.answer("Кнопка устарела. Попробуйте ещё раз или начните с /start.", show_alert=True)
+
+
+@dp.update.outer_middleware()
+async def inactivity_middleware(handler, event, data):
+    user = data.get("event_from_user")
+    if user is not None:
+        _schedule_inactivity_timer(user.id)
+    return await handler(event, data)
 
 
 async def main():
