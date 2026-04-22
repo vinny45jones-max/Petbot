@@ -167,7 +167,6 @@ async def _reset_user_flow(
 ) -> None:
     if cancel_expiry:
         _cancel_generation_expiry(user_id)
-        _cancel_inactivity_timer(user_id)
 
     latest_generated.pop(user_id, None)
     _drop_latest_session(user_id)
@@ -1424,7 +1423,7 @@ class InactivityMiddleware(BaseMiddleware):
 
 
 async def main():
-    logging.info("Bot build marker: inactivity-timer-debug-v4")
+    logging.info("Bot build marker: inactivity-timer-debug-v5")
     mw = InactivityMiddleware()
     dp.message.outer_middleware.register(mw)
     dp.callback_query.outer_middleware.register(mw)
