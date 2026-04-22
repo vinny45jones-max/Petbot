@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EDE4D3"></stop>
+      <stop offset="1" stop-color="#F3C78B"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="500" fill="url(#bg3)"></rect>
+  
+  <g fill="#2E4A3C" opacity="0.9" transform="translate(40,180)">
+    <path d="M0 100 C0 40 60 0 160 0 C260 0 320 40 320 100 C320 150 280 180 200 180 L100 180 C40 180 0 150 0 100 Z"></path>
+    <path d="M40 20 L25 -5 L60 10 Z"></path>
+    <path d="M120 5 L105 -20 L140 -5 Z"></path>
+    <circle cx="70" cy="70" r="6" fill="#F7F1E6"></circle>
+    <circle cx="110" cy="70" r="6" fill="#F7F1E6"></circle>
+    <ellipse cx="90" cy="95" rx="7" ry="5" fill="#F4C9B6"></ellipse>
+  </g>
+  <text x="20" y="480" font-family="Nunito, sans-serif" font-size="12" fill="#1F3B2D" opacity="0.5">placeholder · replace with Pet BOT output</text>
+</svg>
