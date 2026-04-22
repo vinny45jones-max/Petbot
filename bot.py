@@ -1417,6 +1417,7 @@ async def inactivity_middleware(handler, event, data):
 
 
 async def main():
+    logging.info("Bot build marker: inactivity-timer-debug-v1")
     await dp.start_polling(bot)
 
 
