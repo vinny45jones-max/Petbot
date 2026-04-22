@@ -1415,6 +1415,7 @@ async def handle_unknown_callback(call: CallbackQuery):
 
 @dp.message.outer_middleware()
 async def inactivity_message_middleware(handler, event: Message, data):
+    logging.info("MW:message invoked user=%s", getattr(event.from_user, "id", None))
     if event.from_user is not None:
         _schedule_inactivity_timer(event.from_user.id)
     return await handler(event, data)
@@ -1422,13 +1423,14 @@ async def inactivity_message_middleware(handler, event: Message, data):
 
 @dp.callback_query.outer_middleware()
 async def inactivity_callback_middleware(handler, event: CallbackQuery, data):
+    logging.info("MW:callback invoked user=%s", getattr(event.from_user, "id", None))
     if event.from_user is not None:
         _schedule_inactivity_timer(event.from_user.id)
     return await handler(event, data)
 
 
 async def main():
-    logging.info("Bot build marker: inactivity-timer-debug-v2")
+    logging.info("Bot build marker: inactivity-timer-debug-v3")
     await dp.start_polling(bot)
 
 
