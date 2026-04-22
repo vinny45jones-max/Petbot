@@ -1413,16 +1413,22 @@ async def handle_unknown_callback(call: CallbackQuery):
     await call.answer("Кнопка устарела. Попробуйте ещё раз или начните с /start.", show_alert=True)
 
 
-@dp.update.outer_middleware()
-async def inactivity_middleware(handler, event, data):
-    user = data.get("event_from_user")
-    if user is not None:
-        _schedule_inactivity_timer(user.id)
+@dp.message.outer_middleware()
+async def inactivity_message_middleware(handler, event: Message, data):
+    if event.from_user is not None:
+        _schedule_inactivity_timer(event.from_user.id)
+    return await handler(event, data)
+
+
+@dp.callback_query.outer_middleware()
+async def inactivity_callback_middleware(handler, event: CallbackQuery, data):
+    if event.from_user is not None:
+        _schedule_inactivity_timer(event.from_user.id)
     return await handler(event, data)
 
 
 async def main():
-    logging.info("Bot build marker: inactivity-timer-debug-v1")
+    logging.info("Bot build marker: inactivity-timer-debug-v2")
     await dp.start_polling(bot)
 
 
