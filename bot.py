@@ -223,7 +223,9 @@ async def _expire_by_inactivity(user_id: int) -> None:
 
 def _schedule_inactivity_timer(user_id: int) -> None:
     _cancel_inactivity_timer(user_id)
-    inactivity_tasks[user_id] = asyncio.create_task(_expire_by_inactivity(user_id))
+    task = asyncio.create_task(_expire_by_inactivity(user_id))
+    inactivity_tasks[user_id] = task
+    logging.info("Inactivity timer scheduled for user=%s task_id=%s", user_id, id(task))
 
 
 async def _animate_loading_message(message: Message) -> None:
@@ -1423,7 +1425,7 @@ class InactivityMiddleware(BaseMiddleware):
 
 
 async def main():
-    logging.info("Bot build marker: inactivity-timer-debug-v5")
+    logging.info("Bot build marker: inactivity-timer-debug-v6")
     mw = InactivityMiddleware()
     dp.message.outer_middleware.register(mw)
     dp.callback_query.outer_middleware.register(mw)
