@@ -6,7 +6,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 
-from aiogram import Bot, Dispatcher, F
+from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -1413,24 +1413,22 @@ async def handle_unknown_callback(call: CallbackQuery):
     await call.answer("Кнопка устарела. Попробуйте ещё раз или начните с /start.", show_alert=True)
 
 
-@dp.message.outer_middleware()
-async def inactivity_message_middleware(handler, event: Message, data):
-    logging.info("MW:message invoked user=%s", getattr(event.from_user, "id", None))
-    if event.from_user is not None:
-        _schedule_inactivity_timer(event.from_user.id)
-    return await handler(event, data)
-
-
-@dp.callback_query.outer_middleware()
-async def inactivity_callback_middleware(handler, event: CallbackQuery, data):
-    logging.info("MW:callback invoked user=%s", getattr(event.from_user, "id", None))
-    if event.from_user is not None:
-        _schedule_inactivity_timer(event.from_user.id)
-    return await handler(event, data)
+class InactivityMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        from_user = getattr(event, "from_user", None)
+        user_id = from_user.id if from_user is not None else None
+        logging.info("MW invoked event=%s user=%s", type(event).__name__, user_id)
+        if user_id is not None:
+            _schedule_inactivity_timer(user_id)
+        return await handler(event, data)
 
 
 async def main():
-    logging.info("Bot build marker: inactivity-timer-debug-v3")
+    logging.info("Bot build marker: inactivity-timer-debug-v4")
+    mw = InactivityMiddleware()
+    dp.message.outer_middleware.register(mw)
+    dp.callback_query.outer_middleware.register(mw)
+    logging.info("Inactivity middleware registered")
     await dp.start_polling(bot)
 
 
