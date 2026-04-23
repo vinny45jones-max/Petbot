@@ -5,7 +5,7 @@ export default function Hero() {
     <section className="hero" id="top">
       <div className="container hero-grid">
         <div className="hero-copy">
-          <span className="chip">Волонтёрский проект · РФ и РБ</span>
+          <span className="chip">Волонтёрский проект Ирины Комоловой</span>
           <h1 className="display">Каждой лапе&nbsp;— свой&nbsp;дом.</h1>
           <p className="lead">
             Мы помогаем кошкам и&nbsp;собакам из&nbsp;приютов и&nbsp;с&nbsp;улиц находить семью. Знакомьтесь с&nbsp;питомцами, забирайте домой или помогайте тем, кто ещё ищет.

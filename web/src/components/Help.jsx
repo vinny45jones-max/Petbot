@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { icons } from '../icons';
 import { TG_CHANNEL_URL } from '../config';
 
-const cardNumber = '2200 1234 5678 9012';
+const cardNumber = '4641 3200 4006 1417';
+const cardExpiry = '07/26';
 
 const needs = [
   { p: 'высокий', title: 'Операция Найде',          raised: 8200, goal: 18400, body: 'Овариогистерэктомия после осложнений. Срок — до&nbsp;29&nbsp;апреля.' },
@@ -38,7 +39,7 @@ export default function Help({ onToast }) {
             <div className="help-card-label caption">Номер карты</div>
             <div className="help-card-num">{cardNumber}</div>
             <div className="help-card-meta">
-              <span>МИР · Тинькофф</span><span className="dot-sep">·</span><span>Ирина К.</span>
+              <span>Irina K.</span><span className="dot-sep">·</span><span>до {cardExpiry}</span>
             </div>
             <button className="btn btn-primary btn-lg help-copy" onClick={copy}>
               <span dangerouslySetInnerHTML={{ __html: copied ? icons.check : icons.heart }} />

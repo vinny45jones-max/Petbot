@@ -7,7 +7,7 @@ export default function Footer() {
         <div>
           <img src="/assets/logo-mark.svg" width="36" height="36" alt="" />
           <div className="brand-word" style={{ marginTop: 10, fontSize: 18 }}>Pet <b>Help</b></div>
-          <p className="caption" style={{ marginTop: 12, maxWidth: 260 }}>Волонтёрское сообщество. РФ и&nbsp;РБ. Каждой лапе&nbsp;— свой&nbsp;дом.</p>
+          <p className="caption" style={{ marginTop: 12, maxWidth: 260 }}>Волонтёрское сообщество</p>
         </div>
         <div>
           <div className="foot-h">Проект</div>
@@ -19,8 +19,8 @@ export default function Footer() {
         <div>
           <div className="foot-h">Связаться</div>
           <a href="mailto:hello@pethelp.ru">hello@pethelp.ru</a>
-          <a href={TG_CHANNEL_URL} target="_blank" rel="noopener">Telegram-канал</a>
-          <a href={BOT_URL} target="_blank" rel="noopener">Pet BOT для&nbsp;волонтёров</a>
+          <a href={TG_CHANNEL_URL} target="_blank" rel="noopener">Telegram-канал @save_cat</a>
+          <a href={BOT_URL} target="_blank" rel="noopener">Pet BOT @Irapet_bot</a>
         </div>
         <div>
           <div className="foot-h">Документы</div>

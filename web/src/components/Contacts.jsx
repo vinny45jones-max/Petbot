@@ -1,11 +1,12 @@
 import { icons } from '../icons';
-import { BOT_URL, TG_CHANNEL_URL } from '../config';
+import { BOT_URL, BOT_USERNAME, TG_CHANNEL_URL, TG_CHANNEL_USERNAME } from '../config';
 
 export default function Contacts({ onToast }) {
   const items = [
-    { icon: 'messageHeart', label: 'Telegram-канал',           value: '@pethelp_channel',         href: TG_CHANNEL_URL },
-    { icon: 'paw',          label: 'Pet BOT — для волонтёров', value: 'Открыть бота',             href: BOT_URL },
-    { icon: 'send',         label: 'Почта',                    value: 'hello@pethelp.ru',         href: 'mailto:hello@pethelp.ru' },
+    { icon: 'messageHeart', label: 'Telegram-канал',                   value: TG_CHANNEL_USERNAME,        href: TG_CHANNEL_URL },
+    { icon: 'paw',          label: 'Pet BOT — обработка фото животных', value: BOT_USERNAME,               href: BOT_URL },
+    { icon: 'phone',        label: 'Телефон',                   value: '+375 29 668 64 82',        href: 'tel:+375296686482' },
+    { icon: 'send',         label: 'Почта',                    value: 'iriska-sweety@yandex.ru',  href: 'mailto:iriska-sweety@yandex.ru' },
     { icon: 'clock',        label: 'Координаторы онлайн',      value: 'ежедневно, 10:00–22:00',   href: null },
   ];
   const submit = (e) => {
