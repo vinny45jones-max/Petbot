@@ -633,3 +633,368 @@ Pet BOT (текущий Telegram-бот) остаётся независимым
 - Канал бота в Telegram становится одной из витрин
 - Архитектурно: добавляется `Animal.source` enum уже в фазе 1, бот заполняет `source = telegram_bot`
 - Сквозная нумерация `pet_number` мигрирует из `pet_counter.txt` в `Animal.pet_number` БД на старте фазы 1
+
+---
+
+## 16. Gap-analysis — возможные доработки по фазам
+
+Этот раздел отвечает на вопрос «что мы могли упустить». Каждый пункт оценён и распределён по фазам.
+
+### 16.1 Фаза 0 — outreach и юр.фундамент
+
+**Брендинг и контент:**
+
+- Название проекта и доменное имя (короткое, .by)
+- Лого + favicon + OG-image (можно через AI или фрилансера)
+- Tone of voice document для текстов
+- Hero-фото от профессионального фотографа (или партнёрские из приютов)
+- Email-домены: `info@`, `support@`, `donate@`, `legal@`
+
+**Юр.документы (блокеры запуска):**
+
+- Privacy Policy (закон РБ № 99-З «О защите перс.данных», Указ № 422)
+- Terms of Service / Договор-оферта пользователя
+- Cookie Policy + cookie banner (для Tawk.to и других не-Plausible сервисов)
+- Договор-оферта на размещение животных (передача неисключительных прав на контент)
+- Договор с организациями-партнёрами (шаблон)
+- Возрастной gate: регистрация с 14 лет (по КоАП РБ ст.16.29) — чекбокс «мне 14+»
+- Согласие на обработку перс.данных при регистрации (явный чекбокс, не pre-checked)
+- DPIA если будут чувствительные категории данных
+- Регистрация уведомления оператора перс.данных в НЦЗПД (если требуется по объёму)
+
+**Юр.лицо (если своя НКО):**
+
+- Регистрация учреждения / общественного объединения в Мингорисполкоме
+- Открытие благотворительного счёта в Беларусбанке/Приорбанке
+- Налоговый учёт (МНС)
+- Договор с ExpressPay / WebPay / hutkigrosh
+- Бухгалтер на аутсорсе для отчётности по донатам
+- Правила использования благотворительных средств (внутренний документ)
+
+**Инфра-аккаунты (готовим до недели 1 разработки):**
+
+- GitHub repo (private) + Actions
+- Railway account + биллинг
+- Cloudflare account + R2 + DNS
+- Resend account + домен-верификация (SPF/DKIM/DMARC)
+- Plausible (cloud или self-host)
+- Tawk.to
+- Sentry
+- BotFather: отдельный бот для Telegram OAuth (НЕ тот же что Pet BOT)
+- Google Search Console + Yandex Webmaster
+- Аккаунты в соцсетях для продвижения (TG-канал проекта, VK-группа, Instagram)
+
+**Партнёрские договорённости:**
+
+- ByPet — узнать статус, обсудить партнёрство
+- 5-7 крупнейших приютов — подписать MoU «бесплатно для них всегда»
+- Юрист-партнёр для ревью юр.раздела (АЗО / HelpSafe / частный)
+- Дизайнер на иллюстрации для пустых состояний и hero (опционально)
+
+### 16.2 Фаза 1 — что добавить в MVP (важно, было упущено)
+
+**Trust & Safety (обязательно):**
+
+- hCaptcha / Cloudflare Turnstile на: регистрации, размещении животного, форме «Сообщить о жестокости», форме отправки заявки adoption
+- Rate limiting на API: 60 req/min per IP, 10 регистраций/час per IP
+- Антиспам в комментариях: эвристика (ссылки, повторы, скорость), shadow-ban
+- Account-deletion endpoint в `/me/profile` (право на забвение по закону 99-З)
+- Data-export endpoint (выгрузка JSON всех моих данных)
+- 2FA TOTP для moderator и superadmin (стандартный QR + TOTP)
+- Аудит-лог критических действий (бан, удаление, изменение роли, рефанд донатов)
+- IP-blocking list в админке для злостных нарушителей
+
+**Caталог — критичные мелочи:**
+
+- Бейджи на карточке: «Срочно» (нужна срочная медпомощь), «Передержка», «На карантине»
+- Статус «Я уже занят» — частичный hide карточки + пометка «забронирован, ждёт встречи»
+- Статус «Пристроен» — карточка остаётся для истории успеха с бейджем
+- Кнопка «Я нашёл хозяина» / «Закрыть объявление» для citizen-владельца
+- История изменений объявления (audit trail) для модерации
+- Маркировка «Найдено / Потеряно» — отдельная вертикаль для бездомных и потеряшек (важная семантически)
+- «Похожие животные» под карточкой (по виду+городу+размеру)
+
+**Auth и онбординг:**
+
+- Welcome-email после регистрации с гайдом «что вы можете сделать на сайте»
+- Magic link login по email (без пароля) — упрощает для low-tech
+- «Запомнить меня» галочка с долгим cookie
+- Восстановление email через TG (если связаны)
+- Onboarding-walkthrough при первом визите (2-3 шага tooltip)
+
+**Контент и навигация:**
+
+- FAQ страница (топ-20 вопросов)
+- «Как это работает» / «Безопасность» / «Истории успеха» в footer
+- Глоссарий: стерилизация, чипирование, передержка, опека (для low-literacy)
+- 404 / 500 страницы с поиском и навигацией
+- Хлебные крошки на глубоких страницах
+- Footer с обязательными ссылками: О проекте / Контакты / Privacy / Terms / Cookie / Правила размещения
+
+**SEO дополнительно:**
+
+- Yandex.Метрика (опционально, в РБ Yandex активен)
+- Page meta description и title уникальны на каждой странице
+- Структурированные URL: `/animals/[city]/[species]/[slug]` вместо плоских
+- Canonical URLs для фильтров каталога
+- Sitemap.xml split по типам (animals, organizations, articles)
+- Image sitemap для фото животных
+- IndexNow для свежих animals (для Bing/Yandex)
+
+**Уведомления:**
+
+- Email-настройки в `/me/profile`: что слать, как часто
+- Базовые типы: «Заявка на моё объявление», «Объявление одобрено», «Объявление отклонено», «Донат на моё животное», «Чек донора»
+- Digest «Свежее за неделю» (опционально, выкл по умолчанию)
+
+**Performance и качество:**
+
+- Core Web Vitals budget: LCP <2.5s, CLS <0.1, INP <200ms
+- Image optimization через Next.js Image + R2
+- Bundle analyzer в CI
+- Lighthouse CI на pull requests (>90 score gate)
+- Sentry с performance monitoring
+- Status page (`status.<domain>.by` через UptimeRobot или Better Uptime)
+- Maintenance mode toggle в env-vars
+- Database backups: Railway daily + еженедельный экспорт в R2 + квартальный тест восстановления
+
+**Бизнес/Операции:**
+
+- Webhook receiver для платежей идемпотентен (защита от двойной обработки)
+- Reconciliation cron: раз в сутки сверять статусы pending Donations с ExpressPay
+- Email-алерт superadmin при failed webhook или несостыковке
+- Простой help-center: набор статей в Payload коллекции `HelpArticle`
+- Beta-tester группа (10-15 пользователей) — для feedback за 2 недели до запуска
+
+**Локализация-ready (даже если только русский):**
+
+- `next-intl` или Payload localization включён с фазы 1
+- Все строки в `messages/ru.json`
+- Plural-rules через ICU (`{count, plural, one {1 кот} few {# кота} many {# котов}}`)
+- Date/number форматирование через `Intl.NumberFormat('ru-BY')` и `Intl.DateTimeFormat('ru-BY')`
+- Денежный формат BYN
+- Hreflang-теги под будущие локали
+
+**Accessibility (обязательно):**
+
+- Прохождение axe-core в CI
+- Skip-to-content link
+- Focus-visible стили
+- ARIA-labels на иконочных кнопках
+- Контраст-тестирование в Storybook
+- Keyboard-navigation полное (TAB через всё)
+- «Шрифт крупнее» toggle в footer (для пожилых)
+- Screen reader smoke-test перед запуском
+
+**Юр.раздел расширения:**
+
+- «Найти юриста» — каталог зоо-юристов РБ (партнёры + ссылки)
+- Глоссарий юр.терминов (понятным языком)
+- FAQ по ст. 339-1 УК и 16.29 КоАП
+- Образец заявления в РОВД (как статичный PDF, до генератора в фазе 2)
+
+**Animal model — добавляем поля:**
+
+- `urgency` enum: `normal | urgent_medical | needs_temp_home`
+- `intake_date` (когда взяли с улицы / попало в приют)
+- `lost_or_found` enum: `for_adoption | lost | found` (вертикаль потеряшек)
+- `last_seen_location` (для lost/found, опционально)
+- `reservation_status` enum: `available | reserved | adopted`
+- `media_count` cached (для индекса каталога без join'а)
+
+### 16.3 Фаза 2 — что добавить (расширения сверх ранее заявленного)
+
+**Внутренний чат:**
+
+- Anti-abuse: автомодерация ссылок, телефонов вне формата, бранных слов
+- Voice messages (опционально)
+- Файлы (только фото, до 5 шт)
+- Read receipts (опционально)
+- Системные сообщения от приюта: «Запланирована встреча на ...»
+- Push-notifications браузерные через Web Push API
+
+**Видео:**
+
+- Cloudflare Stream или Mux — оба support transcoding и HLS
+- Лимит длительности: 60 секунд
+- Thumbnail-генерация автоматическая
+- Compression preset под mobile
+- Cost-alerting (storage > X)
+- Disable upload при превышении квоты
+
+**UGC-статьи:**
+
+- Editorial review workflow в Payload
+- Featured articles на главной
+- Профили авторов с историей публикаций
+- Подписка на автора + email-digest
+- Newsletter раз в 2 недели с топ-статьями
+- Anti-plagiarism checker (Copyleaks API опционально)
+
+**SMS auth:**
+
+- Бюджет: ~0.05-0.1 BYN за SMS = $1-3/мес на 1000 пользователей
+- Failover: BSMS → А1 → МТС
+- Throttle: 3 SMS на номер в сутки
+- Anti-bot: всегда после captcha
+
+**Генератор юр.документов:**
+
+- Версионность шаблонов (snapshot при изменении НПА)
+- История генераций пользователя в `/me/legal-documents`
+- PDF (Puppeteer headless Chrome) + DOCX (docxtemplater)
+- Эл.подпись через НЦЭУ (опционально)
+- Юрист-партнёр валидирует каждый новый шаблон
+
+**Pet BOT интеграция:**
+
+- Service-token для бота с rate-limit
+- Дубль-детекция: если из бота приходит та же фотография, что уже на сайте — pre-merge
+- Telegram-канал бота как RSS-источник для сайта (опционально)
+
+**Recurring donations:**
+
+- bePaid поддерживает card-binding и rebill
+- Управление подпиской в `/me/donations`
+- Email напоминание перед списанием
+- Easy cancel («Отменить подписку» одной кнопкой)
+- «Стена донаторов» (опционально, с согласия)
+
+**Saved searches:**
+
+- Cron 1×/день
+- Лимит: 5 saved searches на пользователя
+- Unsubscribe-link в каждом email
+- Digest формат
+
+**Чип-lookup:**
+
+- Парт­нёр-API запрос к animal-id.by (если откажут — фронт-форма редиректа)
+- PetMaxx fallback для иностранных чипов
+- Связка: если введённый чип = чей-то Animal.microchip_id на сайте — показать «Этот чип зарегистрирован у нас как ...»
+
+### 16.4 Фаза 3 — что добавить
+
+**Маркетплейс корма и нужд:**
+
+- «Помоги делом» — список конкретных нужд приюта (15 кг корма Royal Canin Adult, 3 шт одеял, лекарство X)
+- Партнёрство с зоомагазинами РБ (4 лапы, ZooBy, ZooMag) — прямой заказ с доставкой в приют
+- Comission-share модель
+
+**Календарь событий:**
+
+- Выставки животных
+- Дни усыновления
+- Благотворительные акции
+- Подписка на события по городу
+
+**Волонтёрство:**
+
+- Анкета «Я хочу помогать руками» (выгул, уборка, медицина, фото)
+- Matching с приютами по локации и навыкам
+- Опыт-портфолио волонтёра
+
+**Образование:**
+
+- Курсы / вебинары: «Как ухаживать за первой собакой», «Социализация кошки», «Что делать с агрессией»
+- Партнёрство с кинологами / зоопсихологами РБ
+- Сертификат «Я готов взять собаку» (опциональный gate для adoption-заявки)
+
+**Расширение в СНГ:**
+
+- Локализация на белорусский (обязательно для имиджа)
+- Локализация на английский (для усыновителей из ЕС)
+- Архитектурно: домен-расширение `.kz`, `.ua` opt-in за рамками этого спека
+
+**Native mobile (PWA → app):**
+
+- TWA (Trusted Web Activity) → Google Play
+- iOS — отдельная сборка через Capacitor или React Native
+- Push-уведомления через FCM/APNS
+- Offline-режим для каталога (PWA service worker)
+
+**Ветконсультации:**
+
+- Whereby Embedded
+- Booking через Cal.com self-hosted или Calendly
+- Партнёрство с 5-10 клиниками РБ
+- Платный план (оплата клиники, comission платформе)
+
+**Аналитика для приютов:**
+
+- Дашборд: просмотры, заявки, успешные adoption по месяцам
+- A/B тестирование описаний (опционально)
+- Топ-фотографии (по CTR)
+
+### 16.5 Сквозные опции, которые НЕ делаем (новый список)
+
+- Форум / Q&A (комментарии достаточно)
+- Платная юр.помощь без лицензии
+- Маркетплейс между гражданами (это про продажу, не благотворительность)
+- Криптокошельки / NFT (преждевременно)
+- Web3 / decentralized hosting (overkill)
+- AI-генерация описаний животных автоматически (Pet BOT уже делает по запросу пользователя — этого достаточно)
+- Соцсеть с лентой (не нужно, не agg-функция)
+- Голосовой ассистент
+
+### 16.6 Что добавляется в модель данных за пределами фазы 1
+
+| Сущность | Фаза | Назначение |
+|---|---|---|
+| `Conversation`, `Message` | 2 | Внутренний чат |
+| `UserArticle`, `ArticleRevision` | 2 | UGC-статьи |
+| `PhoneVerification` | 2 | SMS auth |
+| `LegalDocumentTemplate`, `LegalDocumentGeneration` | 2 | Генератор док-в |
+| `DonationSubscription` | 2 | Recurring donations |
+| `SavedSearch` | 2 | Сохранённый поиск + alerts |
+| `NotificationPreference` | 1 (можно сразу) | Настройки уведомлений |
+| `HelpArticle` | 1 | FAQ / help-center |
+| `Glossary` | 1 | Глоссарий |
+| `LostFoundReport` | 1 (или интегрировано в Animal через `lost_or_found`) | Потеряшки |
+| `VolunteerProfile`, `VolunteerOpportunity` | 3 | Волонтёрство |
+| `Event` | 3 | Календарь событий |
+| `Course`, `Enrollment` | 3 | Образование |
+| `ConsultationSlot`, `Consultation` | 3 | Ветконсультации |
+| `MarketplaceItem`, `Order` | 3 | Маркетплейс корма |
+| `AuditLog` | 1 | Аудит критических действий |
+
+### 16.7 Финальный апдейт scope MVP
+
+Учитывая gap-analysis, в MVP (фаза 1) **добавляется к ранее заявленному**:
+
+- Captcha (Cloudflare Turnstile) на формы
+- Rate limiting и базовый антиспам
+- Account deletion + data export (закон 99-З)
+- 2FA для модераторов/админов
+- Audit log критических действий
+- Бейджи «Срочно» / «Передержка» / «Карантин» / «Забронирован» / «Пристроен»
+- Кнопка «Закрыть объявление» для citizen-владельца
+- Вертикаль «Найдено / Потеряно» (через `Animal.lost_or_found`)
+- Похожие животные
+- Magic-link login по email
+- Welcome-email и onboarding-walkthrough
+- FAQ, «Как это работает», «Безопасность», «Истории успеха»
+- Глоссарий и help-center
+- 404 / 500 страницы
+- Хлебные крошки
+- NotificationPreference + базовые типы уведомлений
+- Email-настройки в профиле
+- Структурированные URL `/animals/[city]/[species]/[slug]`
+- Image sitemap + canonical URLs
+- IndexNow интеграция
+- Lighthouse CI в pull requests
+- Status page и maintenance mode
+- Idempotent payment webhook + reconciliation cron
+- Лю­ди-партнёры юристы и каталог зоо-юристов РБ
+- Полная i18n-готовность (даже при одном языке)
+- WCAG 2.2 AA + axe-core CI + «Шрифт крупнее»
+
+Эти добавки **не меняют стек** и архитектурно укладываются в уже описанные модели. Срок MVP увеличивается с 10 до **12-14 недель**.
+
+### 16.8 Обновлённое распределение моделей по фазам
+
+**Фаза 1:** User, Organization, Animal, City, Media, BlogPost, LegalArticle, Donation, AdoptionInquiry, Comment, ReportFlag, CrueltyReport, NotificationPreference, HelpArticle, Glossary, AuditLog.
+
+**Фаза 2:** Conversation, Message, UserArticle, ArticleRevision, PhoneVerification, LegalDocumentTemplate, LegalDocumentGeneration, DonationSubscription, SavedSearch.
+
+**Фаза 3:** VolunteerProfile, VolunteerOpportunity, Event, Course, Enrollment, ConsultationSlot, Consultation, MarketplaceItem, Order.
