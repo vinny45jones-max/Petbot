@@ -377,6 +377,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 Критическая вертикаль §17. `computeDeadline` = `intakeDate + holdDays`. `computeUrgency`: `critical` если ≤3 дня, `high` если ≤7, иначе `normal`. Используется и в хуке Animal (запись поля), и в UI (live countdown).
 
+> ⚠️ **Живость вертикали отлова.** `urgencyLevel`/`urgencyRank` проставляются **только при записи документа** (beforeChange-хук Task 6). Live-пересчёт (ежедневный cron `urgency_recalc_daily`) реализован в **Plan 4 Task 19** — до его исполнения каталожная сортировка и фильтр срочности отражают состояние **на момент создания карточки, не текущую дату**. UI-countdown (`UrgencyBadge`, Task 10) считается от `legalDeadlineDate` на лету и остаётся точным; рассинхрон возможен только в сортировке/фильтре `urgent`, опирающихся на хранимый `urgencyRank`.
+
 **Files:**
 - Create: `web/lib/urgency.ts`
 - Test: `web/tests/unit/urgency.test.ts`
@@ -741,7 +743,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
-import { makeAnimalBeforeChangeHook } from '@/lib/animal-hooks';
+import { makeAnimalBeforeChangeHook, makeAnimalLifecycleStamps } from '@/lib/animal-hooks';
 
 const NOW = new Date('2026-05-28T12:00:00Z');
 
@@ -809,6 +811,39 @@ describe('makeAnimalBeforeChangeHook', () => {
     expect(data.legalDeadlineDate ?? null).toBeNull();
     expect(data.urgencyLevel).toBe('normal');
     expect(data.urgencyRank).toBe(0);
+  });
+});
+
+describe('makeAnimalLifecycleStamps', () => {
+  const stamp = makeAnimalLifecycleStamps(() => NOW);
+
+  // ФИКС: публикация через create (seed, прямая публикация org_admin) обязана
+  // проставить publishedAt — иначе сортировка по `-publishedAt` теряет карточку.
+  it('sets publishedAt on CREATE with status=published', () => {
+    const data = stamp({ operation: 'create', data: { status: 'published' } } as any);
+    expect(data.publishedAt).toBe(NOW.toISOString());
+  });
+
+  it('sets publishedAt on update with status=published', () => {
+    const data = stamp({ operation: 'update', data: { status: 'published' } } as any);
+    expect(data.publishedAt).toBe(NOW.toISOString());
+  });
+
+  it('does not overwrite existing publishedAt', () => {
+    const existing = '2020-01-01T00:00:00.000Z';
+    const data = stamp({ operation: 'update', data: { status: 'published', publishedAt: existing } } as any);
+    expect(data.publishedAt).toBe(existing);
+  });
+
+  it('sets adoptedAt on CREATE with status=adopted', () => {
+    const data = stamp({ operation: 'create', data: { status: 'adopted' } } as any);
+    expect(data.adoptedAt).toBe(NOW.toISOString());
+  });
+
+  it('leaves stamps null for draft', () => {
+    const data = stamp({ operation: 'create', data: { status: 'draft' } } as any);
+    expect(data.publishedAt ?? null).toBeNull();
+    expect(data.adoptedAt ?? null).toBeNull();
   });
 });
 ```
@@ -879,12 +914,33 @@ export function makeAnimalBeforeChangeHook(deps: AnimalHookDeps) {
     return data;
   };
 }
+
+/**
+ * beforeValidate-хук Animal: проставляет publishedAt/adoptedAt при ЛЮБОЙ операции
+ * (create | update), если статус соответствующий и метка ещё не задана.
+ * Чистая логика с инъекцией `now` — тестируется без БД.
+ * ВАЖНО: ставим без привязки к `operation === 'update'`, иначе seed и прямая
+ * публикация org_admin (идут через create) оставляют publishedAt = null и
+ * сортировки по `-publishedAt` ломаются.
+ */
+export function makeAnimalLifecycleStamps(now: () => Date = () => new Date()) {
+  return ({ data }: any) => {
+    if (!data) return data;
+    if (data.status === 'published' && !data.publishedAt) {
+      data.publishedAt = now().toISOString();
+    }
+    if (data.status === 'adopted' && !data.adoptedAt) {
+      data.adoptedAt = now().toISOString();
+    }
+    return data;
+  };
+}
 ```
 
 - [ ] **Step 5: Запустить — pass**
 
 Run: `cd web && npm test -- animal-hooks`
-Expected: PASS — 6 passed.
+Expected: PASS — 11 passed (6 для `makeAnimalBeforeChangeHook` + 5 для `makeAnimalLifecycleStamps`).
 
 - [ ] **Step 6: Добавить slug в `web/collections/Cities.ts`**
 
@@ -902,7 +958,7 @@ Expected: PASS — 6 passed.
 import type { CollectionConfig } from 'payload';
 import { isAdmin, canManageOrganization } from '@/lib/auth/rbac';
 import { nextPetNumber } from '@/lib/pet-number';
-import { makeAnimalBeforeChangeHook } from '@/lib/animal-hooks';
+import { makeAnimalBeforeChangeHook, makeAnimalLifecycleStamps } from '@/lib/animal-hooks';
 
 const beforeChangeCore = makeAnimalBeforeChangeHook({
   nextPetNumber: () => { throw new Error('replaced per-request'); },
@@ -1039,15 +1095,8 @@ export const Animals: CollectionConfig = {
       },
     ],
     beforeValidate: [
-      ({ data, operation }) => {
-        if (data && operation === 'update' && data.status === 'published' && !data.publishedAt) {
-          data.publishedAt = new Date().toISOString();
-        }
-        if (data && data.status === 'adopted' && !data.adoptedAt) {
-          data.adoptedAt = new Date().toISOString();
-        }
-        return data;
-      },
+      // publishedAt/adoptedAt при ЛЮБОЙ операции (см. makeAnimalLifecycleStamps)
+      makeAnimalLifecycleStamps(),
     ],
   },
 };
@@ -1823,6 +1872,24 @@ export function filtersToSearchParams(f: AnimalFilters): URLSearchParams {
 }
 ```
 
+> **Фильтр по городу: dot-path vs slug→id (ВАЖНО).**
+> `buildAnimalWhere` выдаёт `{ 'city.slug': { in: f.cities } }` — фильтр по полю связанного документа через dot-path. Payload Postgres-adapter **не всегда** резолвит dot-path по relationship (зависит от версии), поэтому **основной путь — резолвить slug→id на сервере**, а dot-path оставить фолбэком.
+>
+> Основной путь (в `web/app/(public)/animals/page.tsx`, рядом с уже существующим блоком `filters.q → searchAnimalIds`):
+> ```ts
+> let where: Where = buildAnimalWhere({ ...filters, cities: [] }); // city убираем из pure-where
+> if (filters.cities.length) {
+>   const cityRes = await payload.find({
+>     collection: 'cities',
+>     where: { slug: { in: filters.cities } },
+>     limit: 200, depth: 0,
+>   });
+>   const cityIds = cityRes.docs.map((c: any) => c.id);
+>   where = { and: [where, { city: { in: cityIds.length ? cityIds : [-1] } }] };
+> }
+> ```
+> Unit-тест `buildAnimalWhere` («adds species/sex/sizes/cities/urgent constraints», ~стр.1742) продолжает проверять форму dot-path — он фиксирует фолбэк-контракт. e2e «selecting Минск …» (Task 11) проверяет уже исполняемый путь end-to-end. Если на твоей версии adapter dot-path работает — можно оставить только его и удалить server-side резолв (но тогда e2e обязателен как страховка).
+
 - [ ] **Step 7: Запустить все каталожные unit-тесты**
 
 Run: `cd web && npm test -- filters animal-url format`
@@ -2053,6 +2120,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Task 11: FilterPanel + SortSelect (client, URL-sync)
 
+> **§7.6 — отложенные фильтры:** возраст-slider и mobile infinite-scroll в Plan 2 **не реализуются**. Перенесены в Plan 4 / будущую итерацию. В Plan 2 каталог использует серверную пагинацию (`Pagination`), а из фильтров §7.6 закрыты: вид, пол, размер, город (multi), стерилизация, срочные.
+
 **Files:**
 - Create: `web/components/catalog/FilterPanel.tsx`
 - Create: `web/components/catalog/SortSelect.tsx`
@@ -2106,6 +2175,7 @@ interface CityOption { slug: string; nameRu: string }
 
 const SPECIES = [{ v: 'dog', l: 'Собаки' }, { v: 'cat', l: 'Кошки' }, { v: 'other', l: 'Другие' }];
 const SIZES = [{ v: 'small', l: 'Маленький' }, { v: 'medium', l: 'Средний' }, { v: 'large', l: 'Большой' }];
+const SEX = [{ v: 'male', l: 'Мальчик' }, { v: 'female', l: 'Девочка' }];
 
 export function FilterPanel({ cities }: { cities: CityOption[] }) {
   const router = useRouter();
@@ -2155,15 +2225,32 @@ export function FilterPanel({ cities }: { cities: CityOption[] }) {
       </fieldset>
 
       <fieldset>
-        <legend className="mb-2 font-semibold">Город</legend>
+        <legend className="mb-2 font-semibold">Пол</legend>
         <select
-          value={sp.get('city') ?? ''}
-          onChange={(e) => update((n) => { n.delete('city'); if (e.target.value) n.set('city', e.target.value); })}
+          value={sp.get('sex') ?? ''}
+          onChange={(e) => update((n) => { n.delete('sex'); if (e.target.value) n.set('sex', e.target.value); })}
           className="w-full rounded-lg border px-2 py-1"
         >
-          <option value="">Все города</option>
-          {cities.map((c) => <option key={c.slug} value={c.slug}>{c.nameRu}</option>)}
+          <option value="">Любой</option>
+          {SEX.map((s) => <option key={s.v} value={s.v}>{s.l}</option>)}
         </select>
+      </fieldset>
+
+      <fieldset>
+        <legend className="mb-2 font-semibold">Город</legend>
+        {/* multi-select: модель ждёт `cities[] in`, поэтому город — повторяющийся параметр `city` */}
+        <div className="max-h-48 space-y-1 overflow-y-auto">
+          {cities.map((c) => (
+            <label key={c.slug} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={sp.getAll('city').includes(c.slug)}
+                onChange={() => toggleMulti('city', c.slug)}
+              />
+              {c.nameRu}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <label className="flex items-center gap-2">
@@ -2237,12 +2324,23 @@ test('sort select switches to newest', async ({ page }) => {
   await page.getByLabel('Сортировка:').selectOption('new');
   await expect(page).toHaveURL(/sort=new/);
 });
+
+// ФИКС: явно покрываем фильтр по городу (риск dot-path по relationship в Postgres-adapter).
+// Seed: Рекс — Минск (dog), Барсик — Гомель (cat). Выбираем Минск:
+// в выдаче есть минское животное и НЕТ гомельского.
+test('selecting Минск shows only Minsk animals', async ({ page }) => {
+  await page.goto('/animals');
+  await page.getByRole('group', { name: 'Город' }).getByLabel('Минск').check();
+  await expect(page).toHaveURL(/city=minsk/);
+  await expect(page.getByText('Рекс №', { exact: false })).toBeVisible();
+  await expect(page.getByText('Барсик №', { exact: false })).toHaveCount(0);
+});
 ```
 
 - [ ] **Step 5: Запустить e2e**
 
 Run: `cd web && npx playwright test filters`
-Expected: PASS — 3 passed.
+Expected: PASS — 4 passed. Если тест по городу падает (выдача пустая или не отфильтрована) — см. ремарку «Фильтр по городу: dot-path vs slug→id» в Task 9 и переключи фильтрацию на резолв slug→id.
 
 - [ ] **Step 6: Commit**
 
@@ -3052,23 +3150,33 @@ Expected: PASS — 3 passed.
 import type { MetadataRoute } from 'next';
 import { getPayload } from 'payload';
 import config from '@/payload.config';
-import { SITEMAP_CHUNK, animalSitemapEntry } from '@/lib/sitemap-data';
+import { SITEMAP_CHUNK, sitemapShards, animalSitemapEntry } from '@/lib/sitemap-data';
 
 const BASE = process.env.APP_URL ?? 'http://localhost:3000';
 
 export async function generateSitemaps() {
   const payload = await getPayload({ config });
-  const { totalDocs } = await payload.count({ collection: 'animals', where: { status: { equals: 'published' } } });
-  const ids: { id: string }[] = [{ id: 'static' }, { id: 'organizations-0' }, { id: 'intake-0' }];
-  for (let i = 0; i < Math.max(1, Math.ceil(totalDocs / SITEMAP_CHUNK)); i++) ids.push({ id: `animals-${i}` });
-  return ids;
+  // Считаем шарды через протестированный sitemapShards (а не вручную) —
+  // тогда unit-тест Step 1 покрывает реально исполняемую логику разбиения.
+  const [animals, organizations, intakeFacilities] = await Promise.all([
+    payload.count({ collection: 'animals', where: { status: { equals: 'published' } } }),
+    payload.count({ collection: 'organizations', where: { isPublished: { equals: true } } }),
+    payload.count({ collection: 'intakeFacilities', where: { isPublished: { equals: true } } }),
+  ]);
+  return sitemapShards({
+    animals: animals.totalDocs,
+    organizations: organizations.totalDocs,
+    intakeFacilities: intakeFacilities.totalDocs,
+  });
 }
 
 export default async function sitemap({ id }: { id: string }): Promise<MetadataRoute.Sitemap> {
   const payload = await getPayload({ config });
 
   if (id === 'static') {
-    return ['', '/animals', '/animals/urgent', '/organizations', '/intake-facilities', '/report-cruelty', '/about', '/contacts']
+    // Только роуты, существующие в Plan 2. `/report-cruelty`, `/about`, `/contacts`
+    // добавляются в Plan 4 (вместе с этими страницами) — иначе sitemap ведёт на 404.
+    return ['', '/animals', '/animals/urgent', '/organizations', '/intake-facilities']
       .map((p) => ({ url: `${BASE}${p}`, changeFrequency: 'weekly' as const, priority: p === '' ? 1 : 0.6 }));
   }
 

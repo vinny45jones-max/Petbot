@@ -33,6 +33,7 @@ web/
   │   │   └── dispatch.ts           # NEW: notifyNewAnimal, notifyNewInquiry, notifyPublished (DI)
   │   ├── email/templates/
   │   │   ├── animal-published.tsx  # NEW
+  │   │   ├── animal-rejected.tsx   # NEW (§16.7 отклонение)
   │   │   ├── inquiry-received.tsx  # NEW
   │   │   └── inquiry-confirmation.tsx  # NEW
   │   ├── animal-form.ts            # NEW: validateAnimalDraft (pure)
@@ -371,6 +372,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Create: `web/lib/email/templates/animal-published.tsx`
+- Create: `web/lib/email/templates/animal-rejected.tsx`
 - Create: `web/lib/email/templates/inquiry-received.tsx`
 - Create: `web/lib/email/templates/inquiry-confirmation.tsx`
 - Create: `web/lib/notify/dispatch.ts`
@@ -389,6 +391,27 @@ export default function AnimalPublished({ title, animalUrl }: { title: string; a
           <Heading>Объявление опубликовано</Heading>
           <Text>Ваше объявление «{title}» прошло проверку и опубликовано.</Text>
           <Link href={animalUrl}>Открыть объявление</Link>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+- [ ] **Step 1b: Создать `web/lib/email/templates/animal-rejected.tsx`** (§16.7 «Объявление отклонено»)
+
+```tsx
+import { Html, Body, Container, Heading, Text } from '@react-email/components';
+
+export default function AnimalRejected({ title, reason }: { title: string; reason?: string | null }) {
+  return (
+    <Html>
+      <Body>
+        <Container>
+          <Heading>Объявление отклонено</Heading>
+          <Text>Ваше объявление «{title}» не прошло модерацию и было отклонено.</Text>
+          {reason ? <Text>Причина: {reason}</Text> : null}
+          <Text>Вы можете отредактировать объявление в личном кабинете и отправить его на проверку повторно.</Text>
         </Container>
       </Body>
     </Html>
@@ -445,6 +468,7 @@ import { sendEmail } from '@/lib/email/resend-client';
 import { notifyAdminChannel } from '@/lib/notify/telegram';
 import { newAnimalAdminMessage, newInquiryMessage } from '@/lib/notify/messages';
 import AnimalPublished from '@/lib/email/templates/animal-published';
+import AnimalRejected from '@/lib/email/templates/animal-rejected';
 import InquiryReceived from '@/lib/email/templates/inquiry-received';
 import InquiryConfirmation from '@/lib/email/templates/inquiry-confirmation';
 
@@ -462,6 +486,12 @@ export async function notifyNewAnimal(a: { id: string | number; petNumber: numbe
 export async function notifyAnimalPublished(ownerEmail: string | null | undefined, title: string, animalUrl: string): Promise<void> {
   if (!ownerEmail) return;
   await sendEmail({ to: ownerEmail, subject: `Объявление «${title}» опубликовано`, react: AnimalPublished({ title, animalUrl }) });
+}
+
+/** Объявление отклонено модератором -> email владельцу (§16.7). */
+export async function notifyAnimalRejected(ownerEmail: string | null | undefined, title: string, reason?: string | null): Promise<void> {
+  if (!ownerEmail) return;
+  await sendEmail({ to: ownerEmail, subject: `Объявление «${title}» отклонено`, react: AnimalRejected({ title, reason }) });
 }
 
 /** Новая заявка adoption -> email владельцу/орг + Telegram + подтверждение заявителю. */
@@ -496,7 +526,7 @@ Expected: без ошибок типов в новых файлах.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add web/lib/email/templates/animal-published.tsx web/lib/email/templates/inquiry-received.tsx web/lib/email/templates/inquiry-confirmation.tsx web/lib/notify/dispatch.ts
+git add web/lib/email/templates/animal-published.tsx web/lib/email/templates/animal-rejected.tsx web/lib/email/templates/inquiry-received.tsx web/lib/email/templates/inquiry-confirmation.tsx web/lib/notify/dispatch.ts
 git commit -m "Plan 3 Task 4: email-шаблоны уведомлений + dispatch-слой
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -751,12 +781,24 @@ export interface CreateAnimalInput extends AnimalDraft {
 
 export type ActionResult = { ok: true; id: string } | { ok: false; errors: Record<string, string> };
 
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 МБ
+
 /** Загружает одно фото в Media через Local API, возвращает id. */
 export async function uploadPhoto(formData: FormData): Promise<{ ok: boolean; id?: string; error?: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: 'unauthorized' };
   const file = formData.get('file');
   if (!(file instanceof File)) return { ok: false, error: 'no file' };
+
+  // Серверная валидация ДО создания Media (клиентский resize не доверяем).
+  if (!ALLOWED_MIME.has(file.type)) {
+    return { ok: false, error: 'Допустимы только JPEG, PNG или WebP' };
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return { ok: false, error: 'Файл больше 8 МБ' };
+  }
+
   const payload = await getPayload({ config });
   const buffer = Buffer.from(await file.arrayBuffer());
   const created = await payload.create({
@@ -766,6 +808,10 @@ export async function uploadPhoto(formData: FormData): Promise<{ ok: boolean; id
   });
   return { ok: true, id: String(created.id) };
 }
+
+// Зависимость Plan 4: rate-limit на размещение (защита от спам-загрузок) —
+// lib/security/rate-limit + Turnstile из Plan 4. Здесь только MIME/размер;
+// частотный лимит и капча навешиваются поверх uploadPhoto/createAnimal в Plan 4.
 
 function resolveOwnership(user: any, input: CreateAnimalInput) {
   if (input.organizationId) {
@@ -823,6 +869,12 @@ export async function updateAnimal(id: string, input: Partial<CreateAnimalInput>
   if (!user) return { ok: false, errors: { auth: 'Требуется вход' } };
   const payload = await getPayload({ config });
 
+  // Загружаем существующее животное, чтобы знать тип владельца.
+  // Animal access.update (Plan 2) отдаёт org-ветку только при наличии data.organization;
+  // без него апдейт org-животного владельцем-организацией проваливается в ownerUser-фильтр.
+  const existing: any = await payload.findByID({ collection: 'animals', id, depth: 0, overrideAccess: true }).catch(() => null);
+  if (!existing) return { ok: false, errors: { auth: 'Объявление не найдено' } };
+
   const data: Record<string, any> = {};
   if (input.name !== undefined) data.name = input.name;
   if (input.description !== undefined) {
@@ -834,6 +886,13 @@ export async function updateAnimal(id: string, input: Partial<CreateAnimalInput>
   if (input.ageYears !== undefined) data.ageYears = input.ageYears;
   if (input.ageMonths !== undefined) data.ageMonths = input.ageMonths;
   if (input.mediaIds) data.media = input.mediaIds;
+
+  // Для org-животного подмешиваем organization (id) в data — иначе access.update вернёт ownerUser-фильтр.
+  if (existing.ownerType === 'organization') {
+    data.organization = typeof existing.organization === 'object' && existing.organization
+      ? String(existing.organization.id)
+      : String(existing.organization);
+  }
 
   try {
     await payload.update({ collection: 'animals', id, data: data as any, overrideAccess: false, user });
@@ -908,24 +967,34 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```ts
     afterChange: [
       async ({ doc, previousDoc, req }) => {
-        // публикация: pending_review/любой -> published
-        if (doc.status === 'published' && previousDoc?.status !== 'published') {
+        const becamePublished = doc.status === 'published' && previousDoc?.status !== 'published';
+        // отклонение модератором: pending_review -> archived (модель «архив = reject» в MVP)
+        const becameRejected = doc.status === 'archived' && previousDoc?.status === 'pending_review';
+        if (!becamePublished && !becameRejected) return;
+
+        const { formatAnimalTitle } = await import('@/lib/format');
+        // email владельцу: citizen -> ownerUser.email; org -> org.email
+        let ownerEmail: string | null | undefined = null;
+        if (doc.ownerUser) {
+          const owner = await req.payload.findByID({ collection: 'users', id: typeof doc.ownerUser === 'object' ? doc.ownerUser.id : doc.ownerUser, depth: 0 }).catch(() => null);
+          ownerEmail = (owner as any)?.email ?? null;
+        } else if (doc.organization) {
+          const org = await req.payload.findByID({ collection: 'organizations', id: typeof doc.organization === 'object' ? doc.organization.id : doc.organization, depth: 0 }).catch(() => null);
+          ownerEmail = (org as any)?.email ?? null;
+        }
+        const title = formatAnimalTitle(doc);
+
+        if (becamePublished) {
           const { notifyAnimalPublished } = await import('@/lib/notify/dispatch');
           const { animalUrl } = await import('@/lib/animal-url');
-          const { formatAnimalTitle } = await import('@/lib/format');
-          // email владельцу: citizen -> ownerUser.email; org -> org.email
-          let ownerEmail: string | null | undefined = null;
-          if (doc.ownerUser) {
-            const owner = await req.payload.findByID({ collection: 'users', id: typeof doc.ownerUser === 'object' ? doc.ownerUser.id : doc.ownerUser, depth: 0 }).catch(() => null);
-            ownerEmail = (owner as any)?.email ?? null;
-          } else if (doc.organization) {
-            const org = await req.payload.findByID({ collection: 'organizations', id: typeof doc.organization === 'object' ? doc.organization.id : doc.organization, depth: 0 }).catch(() => null);
-            ownerEmail = (org as any)?.email ?? null;
-          }
           const base = process.env.APP_URL ?? 'http://localhost:3000';
           // нужен populated city для URL; берём slug если есть, иначе by
           const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city: typeof doc.city === 'object' ? doc.city : null })}`;
-          await notifyAnimalPublished(ownerEmail, formatAnimalTitle(doc), url);
+          await notifyAnimalPublished(ownerEmail, title, url);
+        } else if (becameRejected) {
+          // §16.7 «Объявление отклонено»: причину модератор может положить в moderationNote (если поле есть)
+          const { notifyAnimalRejected } = await import('@/lib/notify/dispatch');
+          await notifyAnimalRejected(ownerEmail, title, (doc as any).moderationNote ?? null);
         }
       },
     ],
@@ -1611,7 +1680,14 @@ export default async function OrgDashboard({ params }: { params: { slug: string 
   if (!org) notFound();
   const payload = await getPayload({ config });
   const animals = await payload.find({ collection: 'animals', where: { organization: { equals: org.id } }, limit: 0, overrideAccess: true });
-  const inquiries = await payload.find({ collection: 'adoption-inquiries', where: { 'animal.organization': { equals: org.id } }, limit: 0, overrideAccess: true });
+
+  // Заявки считаем двухшаговым запросом (надёжнее dot-path по связи):
+  // 1) id животных организации, 2) заявки по animal in ids.
+  const orgAnimals = await payload.find({ collection: 'animals', where: { organization: { equals: org.id } }, limit: 1000, depth: 0, overrideAccess: true });
+  const orgAnimalIds = orgAnimals.docs.map((a: any) => a.id);
+  const inquiries = orgAnimalIds.length === 0
+    ? { totalDocs: 0 }
+    : await payload.find({ collection: 'adoption-inquiries', where: { animal: { in: orgAnimalIds } }, limit: 0, overrideAccess: true });
   const base = `/org/${params.slug}`;
 
   return (
@@ -1800,6 +1876,8 @@ export default async function OrgEditAnimalPage({ params }: { params: { slug: st
 ```
 
 > Для редактирования org-животного валидация требует «контакт» — подставляем телефон/TG организации. Если у организации не заполнен телефон, заполнить его в настройках (Task 16) перед публикацией.
+>
+> **Access org-животного:** редактирование идёт через общий `updateAnimal` (Task 7), который сам загружает существующее животное и при `ownerType==='organization'` подмешивает `organization` (id) в `data` — иначе `Animal.access.update` (Plan 2) вернёт `ownerUser`-фильтр и отклонит апдейт org_admin'ом. Отдельной правки в Task 14 не требуется — фикс централизован в action.
 
 - [ ] **Step 5: Smoke-компиляция**
 
@@ -1863,6 +1941,8 @@ export async function updateInquiryStatus(inquiryId: string, status: 'new' | 'co
 import { useState, useTransition } from 'react';
 import { updateInquiryStatus } from '@/actions/inquiry';
 
+const STATUS_LABEL: Record<string, string> = { new: 'Новая', contacted: 'На связи', closed: 'Закрыта' };
+
 const NEXT: Record<string, { value: 'contacted' | 'closed'; label: string } | null> = {
   new: { value: 'contacted', label: 'Отметить «на связи»' },
   contacted: { value: 'closed', label: 'Закрыть заявку' },
@@ -1880,7 +1960,7 @@ export function InquiryRow({ id, animalTitle, applicantName, phone, telegram, me
     <div className="rounded-xl border p-4">
       <div className="flex items-center justify-between">
         <p className="font-medium">{animalTitle}</p>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">{status}</span>
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">{STATUS_LABEL[status] ?? status}</span>
       </div>
       <p className="mt-1 text-sm text-gray-700">{message}</p>
       <p className="mt-1 text-sm text-gray-500">
@@ -1916,11 +1996,18 @@ export default async function OrgInquiriesPage({ params }: { params: { slug: str
   const org = await getOrganizationBySlug(params.slug);
   if (!org) notFound();
   const payload = await getPayload({ config });
-  const res = await payload.find({
-    collection: 'adoption-inquiries',
-    where: { 'animal.organization': { equals: org.id } },
-    sort: '-createdAt', limit: 200, depth: 2, overrideAccess: true,
-  });
+
+  // Двухшаговый запрос (надёжнее dot-path по связи):
+  // 1) id животных организации, 2) заявки по animal in ids.
+  const orgAnimals = await payload.find({ collection: 'animals', where: { organization: { equals: org.id } }, limit: 1000, depth: 0, overrideAccess: true });
+  const orgAnimalIds = orgAnimals.docs.map((a: any) => a.id);
+  const res = orgAnimalIds.length === 0
+    ? { docs: [] as any[] }
+    : await payload.find({
+        collection: 'adoption-inquiries',
+        where: { animal: { in: orgAnimalIds } },
+        sort: '-createdAt', limit: 200, depth: 2, overrideAccess: true,
+      });
 
   return (
     <main>
@@ -2165,7 +2252,7 @@ export async function POST(req: NextRequest) {
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export function AdoptModal({ animalId, defaultPhone, defaultTelegram }: { animalId: string; defaultPhone?: string; defaultTelegram?: string }) {
+export function AdoptModal({ animalId, defaultPhone, defaultTelegram, triggerLabel = 'Хочу взять домой', accent = false }: { animalId: string; defaultPhone?: string; defaultTelegram?: string; triggerLabel?: string; accent?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -2184,7 +2271,10 @@ export function AdoptModal({ animalId, defaultPhone, defaultTelegram }: { animal
   }
 
   if (!open) {
-    return <button onClick={() => setOpen(true)} className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white">Хочу взять домой</button>;
+    const cls = accent
+      ? 'rounded-xl bg-red-600 px-6 py-3 font-semibold text-white ring-2 ring-red-300 animate-pulse'
+      : 'rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white';
+    return <button onClick={() => setOpen(true)} className={cls}>{triggerLabel}</button>;
   }
 
   return (
@@ -2215,7 +2305,7 @@ export function AdoptModal({ animalId, defaultPhone, defaultTelegram }: { animal
 }
 ```
 
-- [ ] **Step 3: Заменить заглушку в карточке животного (Plan 2 Task 12)**
+- [ ] **Step 3: Заменить заглушку + добавить CTA в ветке службы отлова (Plan 2 Task 12)**
 
 В `web/app/(public)/animals/[city]/[species]/[slug]/page.tsx` добавить импорт:
 
@@ -2223,7 +2313,7 @@ export function AdoptModal({ animalId, defaultPhone, defaultTelegram }: { animal
 import { AdoptModal } from '@/components/adopt/AdoptModal';
 ```
 
-Заменить блок-заглушку:
+**Замена 3a — кнопка-заглушка `else`-ветки (обычное животное).** Заменить:
 
 ```tsx
         ) : (
@@ -2238,6 +2328,31 @@ import { AdoptModal } from '@/components/adopt/AdoptModal';
           <AdoptModal animalId={String(animal.id)} />
         )}
 ```
+
+**Замена 3b — ветка intake-facility (КРИТИЧНО, §17): сейчас `IntakeFacilityBlock` НЕ имеет кнопки подачи заявки, поэтому самые срочные животные остаются без CTA.** Добавить `AdoptModal` рядом с блоком службы отлова. Заменить:
+
+```tsx
+        {facility ? (
+          <IntakeFacilityBlock facility={facility} deadline={animal.legalDeadlineDate as any} />
+        ) : (
+```
+
+на:
+
+```tsx
+        {facility ? (
+          <div className="space-y-3">
+            <IntakeFacilityBlock facility={facility} deadline={animal.legalDeadlineDate as any} />
+            <AdoptModal
+              animalId={String(animal.id)}
+              triggerLabel="Забрать из службы отлова"
+              accent={animal.urgencyLevel === 'critical'}
+            />
+          </div>
+        ) : (
+```
+
+> Кнопка «Забрать из службы отлова» открывает тот же `AdoptModal` (заявка adoption через `/api/inquiries`). При `urgencyLevel === 'critical'` (≤3 дня до дедлайна, §17) — `accent` делает её красной с пульсацией. Так закрывается дыра: животные из муниципальных служб отлова получают рабочий CTA на пристройство, а не только телефон службы.
 
 - [ ] **Step 4: e2e тест заявки**
 
@@ -2258,18 +2373,28 @@ test('adopt button opens modal on animal page', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Заявка на усыновление' })).toBeVisible();
 });
+
+test('intake-facility animal exposes adoption CTA (ФИКС 1)', async ({ page }) => {
+  await page.goto('/animals?urgent=1'); // «Безымянный» — из службы отлова (seed Plan 2)
+  await page.getByText(/Осталось \d+ дн\./).first().click();
+  await expect(page.getByText('В службе отлова')).toBeVisible();
+  // ключевое: у intake-животного есть рабочая кнопка заявки, открывающая модалку
+  await page.getByRole('button', { name: 'Забрать из службы отлова' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Заявка на усыновление' })).toBeVisible();
+});
 ```
 
 - [ ] **Step 5: Запустить e2e**
 
 Run: `cd web && npx playwright test adoption-inquiry`
-Expected: PASS — 2 passed (анонимный POST → 401; модалка открывается).
+Expected: PASS — 3 passed (анонимный POST → 401; модалка обычного животного открывается; intake-животное «Забрать из службы отлова» открывает модалку — ФИКС 1).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add web/app/api/inquiries web/components/adopt/AdoptModal.tsx web/app/\(public\)/animals/\[city\] web/tests/e2e/adoption-inquiry.spec.ts
-git commit -m "Plan 3 Task 17: adoption-заявка — API /api/inquiries + AdoptModal на карточке
+git commit -m "Plan 3 Task 17: adoption-заявка — API /api/inquiries + AdoptModal (обычная + ветка службы отлова)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -2300,9 +2425,32 @@ async function seedTestUser(payload: any) {
     overrideAccess: true,
   });
 }
+
+// org_admin + организация с детерминированным slug — для e2e проверки guard'а кабинета (ФИКС 6).
+async function seedTestOrgAdmin(payload: any) {
+  if (process.env.NODE_ENV === 'production') return;
+  const email = 'orgadmin@test.local';
+  let user = (await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true })).docs[0];
+  if (!user) {
+    user = await payload.create({
+      collection: 'users',
+      data: { email, password: 'Test12345!', role: 'org_admin', firstName: 'Орг', ageConfirmed: true, consentPersonalData: true, _verified: true } as any,
+      overrideAccess: true,
+    });
+  }
+  // Организация с явным slug 'test-shelter' и этим пользователем в admins (overrideAccess обходит field-level access на slug).
+  const existsOrg = await payload.find({ collection: 'organizations', where: { slug: { equals: 'test-shelter' } }, limit: 1, overrideAccess: true });
+  if (!existsOrg.docs.length) {
+    await payload.create({
+      collection: 'organizations',
+      data: { name: 'Тест-приют', slug: 'test-shelter', isVerified: true, isPublished: true, admins: [user.id] } as any,
+      overrideAccess: true,
+    });
+  }
+}
 ```
 
-Вызвать в `seed()`: `await seedTestUser(payload);`
+Вызвать в `seed()`: `await seedTestUser(payload);` и `await seedTestOrgAdmin(payload);`
 
 - [ ] **Step 2: Playwright storageState — авторизация перед тестом**
 
@@ -2350,17 +2498,44 @@ test('citizen submits an animal via wizard', async ({ page }) => {
 
 > Требуется фикстура `web/tests/fixtures/dog.jpg` (любое тестовое фото) и работающий R2/локальный fallback из Plan 1 Task 7. Селекторы (`getByLabel`) опираются на форму логина из Plan 1 Task 13 — при расхождении подписи полей поправить.
 
+- [ ] **Step 2b: e2e — org_admin реально открывает кабинет организации (ФИКС 6: populate reverse-join на req.user)**
+
+Доказывает, что `req.user.organizations` (reverse join из Plan 2 Task 4) заполняется при auth, и `requireOrgAdmin` пропускает org_admin'а (а не редиректит на `/`). Если бы join не populate-ился — был бы редирект.
+
+Добавить в `web/tests/e2e/animal-submit.spec.ts`:
+
+```ts
+async function loginAs(page: any, email: string) {
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Пароль').fill('Test12345!');
+  await page.getByRole('button', { name: /Войти/ }).click();
+  await expect(page).toHaveURL(/\/me|\/$/);
+}
+
+test('org_admin opens org cabinet (req.user.organizations populated, no redirect)', async ({ page }) => {
+  await loginAs(page, 'orgadmin@test.local');
+  const res = await page.goto('/org/test-shelter');
+  expect(res?.status()).toBe(200);
+  // requireOrgAdmin не редиректнул на '/'
+  await expect(page).toHaveURL(/\/org\/test-shelter\/?$/);
+  await expect(page.getByRole('heading', { name: 'Тест-приют' })).toBeVisible();
+});
+```
+
+> Если этот тест падает редиректом на `/` при HTTP 200 на `/` вместо `/org/test-shelter` — значит Payload не populate-ит reverse-join `organizations` на `req.user` в access-контексте; тогда в `getCurrentUser` (Task 2) задать `depth: 1` в `payload.auth` или догрузить организации пользователя вручную перед `canManageOrganization`.
+
 - [ ] **Step 3: Запустить полный flow**
 
-Предусловие: миграции применены, `npm run seed` выполнен (создаёт тест-юзера и демо-данные), dev-сервер запущен.
+Предусловие: миграции применены, `npm run seed` выполнен (создаёт citizen- и org_admin-тест-юзеров, org `test-shelter` и демо-данные), dev-сервер запущен.
 Run: `cd web && npx playwright test animal-submit`
-Expected: PASS — 1 passed (объявление создано, видно в «Мои животные» как «На проверке»).
+Expected: PASS — 2 passed (1: объявление создано, видно в «Мои животные» как «На проверке»; 2: org_admin открывает `/org/test-shelter` с HTTP 200, без редиректа — req.user.organizations заполнен).
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add web/tests/e2e/animal-submit.spec.ts web/scripts/seed.ts
-git commit -m "Plan 3 Task 18: e2e сквозного flow размещения животного + тест-юзер в seed
+git commit -m "Plan 3 Task 18: e2e flow размещения + e2e guard кабинета org_admin (req.user.organizations) + тест-юзеры в seed
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -2378,8 +2553,10 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 | §7.1 фото 1-6, авто-resize до 1600px, upload в R2 | Task 6 (resize) + Task 9 (PhotoUpload) + Task 7 (uploadPhoto → Media) |
 | §7.1 submit → `pending_review` + toast | Task 7 (createAnimal status=pending_review) + Task 9 (redirect ?created=1) |
 | §7.1 email пользователю + TG-уведомление модератору | Task 3/4 (notify) + Task 7 (notifyNewAnimal) |
-| §7.1 модератор апрувит в Payload → published → email пользователю | Task 8 (afterChange) |
+| §7.1 модератор апрувит в Payload → published → email пользователю | Task 8 (afterChange, ветка published) |
+| §16.7 объявление отклонено (pending_review → archived) → email владельцу | Task 8 (afterChange, ветка rejected) + Task 4 (`animal-rejected.tsx`) |
 | §7.2 заявка adoption (modal, предзаполнение, status=new, email+TG владельцу) | Task 17 |
+| §17 CTA «Забрать из службы отлова» на карточке intake-животного (акцент при critical) | Task 17 (AdoptModal в ветке `IntakeFacilityBlock`) |
 | §7.2 «Заявка отправлена» заявителю | Task 17 (AdoptModal done + inquiry-confirmation email) |
 | §5 `/me`, `/me/animals`, `/me/animals/new`, `/me/animals/[id]/edit`, `/me/inquiries` | Task 10, 11, 12 |
 | §5 `/org/[slug]`, `/animals`, `/inquiries`, `/settings` | Task 13, 14, 15, 16 |
@@ -2405,10 +2582,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Известные допущения для исполнителя
 
 - Next.js 14: `headers()`/`searchParams`/`params` синхронные. На Next 15 — обернуть в `await`, убрать `as any` в `current-user.ts`.
-- Видимость заявок владельцу/организации — через серверные запросы с `overrideAccess: true` и фильтром (`ownerUser`/`animal.organization`), а не через collection-level `read`. Проверка прав делается в server action `updateInquiryStatus` и на guard'ах страниц.
-- `payload.create({ collection: 'media', file: { data, mimetype, name, size } })` — формат Local API upload Payload 3; при иной сигнатуре свериться с версией.
-- Поле `_verified: true` в seed тест-юзера (Task 18) — обход email-верификации Payload auth для теста; в production функция не выполняется.
-- dot-notation `where: { 'animal.organization': { equals } }` (Task 13/15) требует, чтобы Payload Postgres-adapter поддерживал query по вложенной связи; при проблемах — двухшаговый запрос (animals орг → ids → inquiries `where animal in ids`).
+- Видимость заявок владельцу/организации — через серверные запросы с `overrideAccess: true` (citizen: фильтр `applicant`/`ownerUser`; org: двухшаговый запрос через id животных организации), а не через collection-level `read`. Проверка прав делается в server action `updateInquiryStatus` и на guard'ах страниц.
+- `payload.create({ collection: 'media', file: { data, mimetype, name, size } })` — формат Local API upload Payload 3; при иной сигнатуре свериться с версией. `uploadPhoto` валидирует MIME (`image/jpeg|png|webp`) и размер (≤8 МБ) до создания Media; rate-limit/Turnstile — Plan 4.
+- Поле `_verified: true` в seed тест-юзеров (Task 18) — обход email-верификации Payload auth для теста; в production функции не выполняются.
+- Заявки организации (Task 13/15) считаются **двухшаговым запросом**: (1) `animals.find({ where: { organization: { equals: orgId } } })` → массив id, (2) `adoption-inquiries.find({ where: { animal: { in: ids } } })`. Это основной путь (надёжно на любом adapter'е). Фолбэк-ремарка: dot-path `where: { 'animal.organization': { equals } }` работает только если Postgres-adapter поддерживает query по вложенной связи — не использовать как основной.
+- `updateAnimal` (Task 7) для org-животного догружает существующую запись и подмешивает `organization` (id) в `data` — иначе `Animal.access.update` (Plan 2) уходит в `ownerUser`-фильтр и отклоняет апдейт org_admin'ом. Касается и `/me/animals/[id]/edit` (Task 11), и `/org/[slug]/animals/[id]/edit` (Task 14) — оба через общий action.
+- `requireOrgAdmin` зависит от reverse-join `Users.organizations` (Plan 2 Task 4), который Payload populate-ит на `req.user` при auth. Если populate не происходит в access-контексте — e2e Task 18 Step 2b упадёт редиректом; чинить в `getCurrentUser` (`depth: 1` в `payload.auth` либо ручная догрузка организаций пользователя).
 
 ---
 
