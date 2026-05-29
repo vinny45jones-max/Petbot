@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-html-link-for-pages -- ссылка ведёт на API-роут экспорта (скачивание JSON), не на страницу */
 export const metadata = { title: 'Политика конфиденциальности' };
 
 export default function PrivacyPage() {
