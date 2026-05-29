@@ -4,6 +4,7 @@ import '../globals.css';
 import PlausibleProvider from 'next-plausible';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { CookieBanner } from '@/components/compliance/CookieBanner';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 
@@ -26,6 +27,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />
+        <CookieBanner />
       </body>
     </html>
   );
