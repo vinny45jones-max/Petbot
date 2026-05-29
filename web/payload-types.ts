@@ -72,6 +72,7 @@ export interface Config {
     media: Media;
     'audit-logs': AuditLog;
     'notification-preferences': NotificationPreference;
+    'magic-link-tokens': MagicLinkToken;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +85,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     'audit-logs': AuditLogsSelect<false> | AuditLogsSelect<true>;
     'notification-preferences': NotificationPreferencesSelect<false> | NotificationPreferencesSelect<true>;
+    'magic-link-tokens': MagicLinkTokensSelect<false> | MagicLinkTokensSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -269,6 +271,18 @@ export interface NotificationPreference {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "magic-link-tokens".
+ */
+export interface MagicLinkToken {
+  id: number;
+  tokenHash: string;
+  user: number | User;
+  consumedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -310,6 +324,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'notification-preferences';
         value: number | NotificationPreference;
+      } | null)
+    | ({
+        relationTo: 'magic-link-tokens';
+        value: number | MagicLinkToken;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -478,6 +496,17 @@ export interface NotificationPreferencesSelect<T extends boolean = true> {
   emailDonationReceipt?: T;
   emailUrgentInCities?: T;
   emailWeeklyDigest?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "magic-link-tokens_select".
+ */
+export interface MagicLinkTokensSelect<T extends boolean = true> {
+  tokenHash?: T;
+  user?: T;
+  consumedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

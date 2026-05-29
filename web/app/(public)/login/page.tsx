@@ -1,4 +1,5 @@
 import { LoginForm } from '@/components/auth/LoginForm';
+import { MagicLinkForm } from '@/components/auth/MagicLinkForm';
 import { TelegramLoginButton } from '@/components/auth/TelegramLoginButton';
 import Link from 'next/link';
 
@@ -23,6 +24,12 @@ export default function LoginPage() {
         </>
       )}
       <LoginForm />
+      <div className="my-6 flex items-center gap-2">
+        <span className="flex-1 h-px bg-border" />
+        <span className="text-xs text-muted-foreground">или</span>
+        <span className="flex-1 h-px bg-border" />
+      </div>
+      <MagicLinkForm />
       <div className="mt-6 text-sm flex justify-between">
         <Link href="/forgot-password" className="text-primary underline">Забыли пароль?</Link>
         <Link href="/register" className="text-primary underline">Регистрация</Link>
