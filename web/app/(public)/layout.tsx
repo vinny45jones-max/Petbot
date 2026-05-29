@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import '../globals.css';
+import PlausibleProvider from 'next-plausible';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 
@@ -18,6 +19,9 @@ export const metadata: Metadata = {
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru-BY">
+      <head>
+        <PlausibleProvider domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || 'pet-aggregator.by'} trackOutboundLinks />
+      </head>
       <body className={inter.className}>
         <Header />
         <main className="min-h-screen">{children}</main>
