@@ -38,3 +38,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://pet:pet@localhost:5432/pet_aggregator_test
           PAYLOAD_SECRET: ci-test-secret-32-characters-aaaa
+      - run: cd web && npm run build
+        env:
+          DATABASE_URL: postgresql://pet:pet@localhost:5432/pet_aggregator_test
+          PAYLOAD_SECRET: ci-test-secret-32-characters-aaaa
+      - name: Lighthouse CI
+        run: cd web && npx lhci autorun
+        env:
+          DATABASE_URL: postgresql://pet:pet@localhost:5432/pet_aggregator_test
+          PAYLOAD_SECRET: ci-test-secret-32-characters-aaaa
