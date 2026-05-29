@@ -511,6 +511,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Task 4: Установить и сконфигурировать Payload CMS 3
 
+> ⚠️ **ФИКС-НОТА (исполнено 2026-05-29, коммит `9bbd47b`).** Шаги ниже НЕ создавали `app/(payload)/layout.tsx` — без него `/admin` отдаёт 500 (`useConfig()` undefined, нет `ConfigProvider`). Плюс Payload `RootLayout` рендерит свои `<html>/<body>`, поэтому общий `app/layout.tsx` (Task 3) несовместим с admin. Реальная установка потребовала **multiple root layouts**: удалить `app/layout.tsx`, дать `(public)` и `(payload)` по своему root-layout, добавить `app/global-error.tsx` и catch-all `(public)/[...not-found]/page.tsx` (глобальный `app/not-found.tsx` без root-layout запрещён). Также `next` пин exact **15.4.11** (15.5.x вне peer-range Payload 3.85). Полный разбор и шаблоны: `docs/solutions/payload/next-multiple-root-layouts.md`. Доп. файлы задачи: `app/(payload)/layout.tsx`, `app/(public)/layout.tsx` (переписан), `app/global-error.tsx`, `app/(public)/{error,not-found}.tsx`, `app/(public)/[...not-found]/page.tsx`; удалены `app/{layout,error,not-found}.tsx`.
+
 **Files:**
 - Create: `web/payload.config.ts`
 - Create: `web/app/(payload)/admin/[[...segments]]/page.tsx` (Payload route)
