@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer';
 export default function NotFound() {
   return (
     <>
+      {/* Header/Footer repeated intentionally: not-found renders outside the (public) route-group layout in Next.js */}
       <Header />
       <main className="max-w-6xl mx-auto px-4 py-24 text-center">
         <h1 className="text-6xl font-bold mb-4">404</h1>

@@ -1,7 +1,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
 
-export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
+export default function ErrorPage({ reset }: { error: Error; reset: () => void }) {
   return (
     <main className="max-w-6xl mx-auto px-4 py-24 text-center">
       <h1 className="text-6xl font-bold mb-4">500</h1>
