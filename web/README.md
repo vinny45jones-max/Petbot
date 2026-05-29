@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pet Aggregator BY — Web
 
-## Getting Started
+Next.js 15 + Payload CMS 3 веб-приложение белорусского агрегатора животных.
 
-First, run the development server:
+## Локальная разработка
+
+### Требования
+
+- Node.js 20+
+- Docker + Docker Compose (для Postgres)
+
+### Старт
 
 ```bash
+docker compose up -d postgres   # из корня репозитория
+cd web
+cp .env.example .env.local
+# Заполнить .env.local своими значениями (минимум DATABASE_URL + PAYLOAD_SECRET)
+npm install
+npx payload generate:importmap
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открыть `http://localhost:3000`. Админка: `/admin` (первый юзер регистрируется через UI).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Seed данных
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run seed
+```
 
-## Learn More
+### Тесты
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm test          # unit (Vitest)
+npm run test:e2e  # e2e (Playwright)
+npm run typecheck # TypeScript
+npm run lint      # ESLint
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Переменные окружения
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Полный список — в `.env.example`. Обязательные для запуска:
 
-## Deploy on Vercel
+- `DATABASE_URL` — строка подключения Postgres
+- `PAYLOAD_SECRET` — секрет ≥32 символов для подписи токенов
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Опциональные (интеграции включаются по мере готовности): `TELEGRAM_BOT_USERNAME`/`TELEGRAM_BOT_TOKEN`, `RESEND_API_KEY`, `R2_*`, `SENTRY_DSN`, `NEXT_PUBLIC_PLAUSIBLE_DOMAIN`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Деплой
+
+Railway, проект `reasonable-commitment`, сервис `Petbot` (Root Directory `/web`, builder RAILPACK).
+Push в `main` → автодеплой через GitHub-интеграцию Railway.
+Конфиг деплоя — `web/railway.json` (healthcheck `/api/health`).
+Env-vars прописываются в Railway dashboard.
+
+## Структура
+
+- `app/` — Next.js App Router
+- `collections/` — Payload коллекции
+- `lib/` — бизнес-логика, чистые функции
+- `components/` — React-компоненты
+- `tests/` — Vitest unit + Playwright e2e
+
+## Документация
+
+- Spec: `../docs/superpowers/specs/2026-05-28-pet-aggregator-design.md`
+- План MVP: `../docs/superpowers/plans/`
+- Ресёрч: `../docs/research/2026-05-28-pet-aggregator-research.md`
+- База знаний / паттерны: `../docs/solutions/`
