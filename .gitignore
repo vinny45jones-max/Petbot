@@ -22,3 +22,5 @@ bot_supervisor.py
 run_bot.pyw
 .claude/
 photo/
+.agents/
+skills-lock.json
