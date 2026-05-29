@@ -590,7 +590,7 @@ export const Organizations: CollectionConfig = {
 ```ts
 import { Organizations } from './collections/Organizations';
 // ...
-collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, Organizations],
+collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations],
 ```
 
 - [ ] **Step 4: Сгенерировать types**
@@ -702,7 +702,7 @@ export const IntakeFacilities: CollectionConfig = {
 ```ts
 import { IntakeFacilities } from './collections/IntakeFacilities';
 // ...
-collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, Organizations, IntakeFacilities],
+collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities],
 ```
 
 - [ ] **Step 3: Сгенерировать types**
@@ -1123,7 +1123,7 @@ const beforeChangeCore = makeAnimalBeforeChangeHook({
 ```ts
 import { Animals } from './collections/Animals';
 // ...
-collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, Organizations, IntakeFacilities, Animals],
+collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals],
 ```
 
 - [ ] **Step 10: Сгенерировать types**

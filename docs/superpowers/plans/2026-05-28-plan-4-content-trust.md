@@ -530,7 +530,7 @@ import { Comments } from './collections/Comments';
 import { ReportFlags } from './collections/ReportFlags';
 // в массиве collections (добавить в конец):
 collections: [
-  Users, Cities, Media, AuditLogs, NotificationPreferences,
+  Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens,
   Organizations, IntakeFacilities, Animals, AdoptionInquiries,
   Comments, ReportFlags,
 ],

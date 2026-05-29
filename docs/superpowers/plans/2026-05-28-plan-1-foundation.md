@@ -1432,7 +1432,7 @@ describe('recordAuditLog', () => {
 import type { Payload } from 'payload';
 
 export interface AuditEntry {
-  actorId: string;
+  actorId?: string; // optional: системные действия (вебхуки платежей, cron) пишутся без юзера
   action: string;
   targetType: string;
   targetId: string;
@@ -1469,7 +1469,7 @@ export const AuditLogs: CollectionConfig = {
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },
   fields: [
-    { name: 'actor', type: 'relationship', relationTo: 'users', required: true },
+    { name: 'actor', type: 'relationship', relationTo: 'users', required: false }, // системные действия (вебхуки/cron) — без actor
     { name: 'action', type: 'text', required: true, index: true },
     { name: 'targetType', type: 'text', required: true, index: true },
     { name: 'targetId', type: 'text', required: true, index: true },
@@ -2529,7 +2529,15 @@ export const MagicLinkTokens: CollectionConfig = {
 };
 ```
 
-Подключить в `payload.config.ts`.
+Подключить в `web/payload.config.ts` — **обязательно добавить в массив `collections`**, иначе `payload.create({ collection: 'magic-link-tokens' })` (Step 4) упадёт рантайм («collection not found») и magic-link логин сломается:
+
+```ts
+import { MagicLinkTokens } from './collections/MagicLinkTokens';
+// финальный массив коллекций Plan 1 (MagicLinkTokens — замыкает набор фундамента):
+collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens],
+```
+
+> ВАЖНО для последующих планов: P2–P5 дописывают свои коллекции ПОСЛЕ `MagicLinkTokens`, НЕ удаляя её из массива (снапшоты массива в P2–P4 уже включают `MagicLinkTokens`).
 
 - [ ] **Step 4: API route `request`**
 

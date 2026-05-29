@@ -198,7 +198,7 @@ describe('amounts', () => {
   it('parses valid amounts and rounds to 2 decimals', () => {
     expect(parseAmount('25')).toEqual({ ok: true, value: 25 });
     expect(parseAmount('9,90')).toEqual({ ok: true, value: 9.9 });
-    expect(parseAmount('10.005')).toEqual({ ok: true, value: 10.01 });
+    expect(parseAmount('10.005').ok).toBe(false); // >2 знаков отклоняем (суб-копеек нет; float-округление ненадёжно)
   });
   it('rejects non-positive, NaN, too large', () => {
     expect(parseAmount('0').ok).toBe(false);
@@ -226,7 +226,7 @@ export type ParseResult = { ok: true; value: number } | { ok: false; error: stri
 /** Парсит сумму из строки (запятая или точка), округляет до копеек, валидирует диапазон. */
 export function parseAmount(raw: string): ParseResult {
   const normalized = (raw ?? '').trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(normalized)) return { ok: false, error: 'Введите сумму числом' };
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return { ok: false, error: 'Введите сумму числом (до 2 знаков после запятой)' };
   const n = Number(normalized);
   if (!Number.isFinite(n) || n <= 0) return { ok: false, error: 'Сумма должна быть больше нуля' };
   if (n > MAX_AMOUNT) return { ok: false, error: 'Слишком большая сумма' };
@@ -234,7 +234,7 @@ export function parseAmount(raw: string): ParseResult {
   return { ok: true, value };
 }
 
-const fmt = new Intl.NumberFormat('ru-BY', { style: 'currency', currency: 'BYN', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const fmt = new Intl.NumberFormat('ru-BY', { style: 'currency', currency: 'BYN', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Денежный формат BYN (ru-BY). */
 export function formatByn(value: number): string {
@@ -646,7 +646,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```ts
 import { NextResponse } from 'next/server';
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { verifyTurnstile } from '@/lib/security/turnstile';
 import { checkRateLimit, clientIp } from '@/lib/security/rate-limit';
 import { parseAmount } from '@/lib/payments/amounts';
@@ -770,18 +770,42 @@ export function DonationReceipt({ amountText, targetText, donorName }: { amountT
 }
 ```
 
+**Общий финализатор `web/lib/payments/finalize-paid.ts`** (ревью P5-3: единая точка «оплачено» для webhook И reconcile — один чек, один аудит, без дубля логики):
+
+```ts
+import type { Payload } from 'payload';
+import { receiptData } from './donation';
+import { sendEmail } from '@/lib/email/resend-client';
+import { DonationReceipt } from '@/lib/email/templates/donation-receipt';
+import { recordAuditLog } from '@/lib/audit/log';
+
+/** Финализирует донат как оплаченный: статус+paidAt, чек донору, аудит. Идемпотентно: ранний выход, если уже paid. */
+export async function finalizeDonationPaid(payload: Payload, donationId: string | number): Promise<void> {
+  const d = (await payload.findByID({ collection: 'donations', id: donationId, depth: 1, overrideAccess: true })) as any;
+  if (d.status === 'paid') return; // защита от гонки и повторной доставки webhook
+  await payload.update({ collection: 'donations', id: donationId, overrideAccess: true, data: { status: 'paid', paidAt: new Date().toISOString() } });
+
+  const label = d.targetType === 'animal' && d.animal && typeof d.animal === 'object'
+    ? ((d.animal as any).name ? `${(d.animal as any).name} №${(d.animal as any).petNumber}` : `№${(d.animal as any).petNumber}`)
+    : d.targetType === 'organization' && d.organization && typeof d.organization === 'object'
+      ? (d.organization as any).name : null;
+  const rd = receiptData({ amountByn: d.amountByn, targetType: d.targetType, targetLabel: label });
+  if (d.donorEmail) {
+    await sendEmail({ to: d.donorEmail, subject: 'Чек о пожертвовании', react: DonationReceipt({ amountText: rd.amountText, targetText: rd.targetText, donorName: d.donorName }) });
+  }
+  await recordAuditLog(payload, { action: 'donation_paid', targetType: 'donation', targetId: String(donationId), meta: { amount: d.amountByn } }).catch(() => {});
+}
+```
+
 - [ ] **Step 2: Реализовать `web/app/api/donations/expresspay/webhook/route.ts`**
 
 ```ts
 import { NextResponse } from 'next/server';
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { verifySignature } from '@/lib/payments/expresspay-signature';
 import { configFromEnv, getInvoiceStatus } from '@/lib/payments/expresspay';
-import { mapProviderStatus, receiptData } from '@/lib/payments/donation';
-import { sendEmail } from '@/lib/email/resend-client';
-import { DonationReceipt } from '@/lib/email/templates/donation-receipt';
-import { recordAuditLog } from '@/lib/audit/log';
+import { finalizeDonationPaid } from '@/lib/payments/finalize-paid';
 
 /**
  * Webhook ExpressPay. Идемпотентен: повторная доставка того же события не создаёт двойной обработки.
@@ -819,26 +843,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, note: 'already processed' });
   }
 
-  // подтверждаем статус у провайдера (не доверяем только телу webhook)
+  // подтверждаем статус у провайдера (НЕ доверяем телу webhook для финализации)
   let confirmed: 'pending' | 'paid' | 'failed' | 'refunded';
   try {
     confirmed = await getInvoiceStatus(invoiceId, cfg);
-  } catch {
-    confirmed = mapProviderStatus(params.Status); // fallback на статус из тела
+  } catch (e) {
+    // провайдер недоступен → НЕ финализируем из тела (форж-защита, особенно при пустом secret). 503 → ExpressPay повторит; reconcile-cron добьёт.
+    console.error('[webhook] getInvoiceStatus failed', invoiceId, e);
+    return NextResponse.json({ error: 'status check failed, retry later' }, { status: 503 });
   }
 
   if (confirmed === 'paid') {
-    await payload.update({ collection: 'donations', id: donation.id, overrideAccess: true, data: { status: 'paid', paidAt: new Date().toISOString() } });
-    await recordAuditLog({ action: 'donation_paid', targetType: 'donation', targetId: String(donation.id), meta: { amount: donation.amountByn } } as any).catch(() => {});
-
-    const label = donation.targetType === 'animal' && donation.animal && typeof donation.animal === 'object'
-      ? ((donation.animal as any).name ? `${(donation.animal as any).name} №${(donation.animal as any).petNumber}` : `№${(donation.animal as any).petNumber}`)
-      : donation.targetType === 'organization' && donation.organization && typeof donation.organization === 'object'
-        ? (donation.organization as any).name : null;
-    const rd = receiptData({ amountByn: donation.amountByn, targetType: donation.targetType, targetLabel: label });
-    if (donation.donorEmail) {
-      await sendEmail({ to: donation.donorEmail, subject: 'Чек о пожертвовании', react: DonationReceipt({ amountText: rd.amountText, targetText: rd.targetText, donorName: donation.donorName }) });
-    }
+    await finalizeDonationPaid(payload, donation.id); // update+paidAt + чек донору + аудит (общая функция с reconcile-cron)
   } else if (confirmed === 'failed' || confirmed === 'refunded') {
     await payload.update({ collection: 'donations', id: donation.id, overrideAccess: true, data: { status: confirmed } });
   }
@@ -847,9 +863,61 @@ export async function POST(req: Request) {
 }
 ```
 
-> `recordAuditLog` сигнатура — из Plan 1; если отличается, адаптировать вызов (обёрнут в `.catch`, чтобы аудит не ломал webhook).
+> `recordAuditLog` теперь зовётся из `finalizeDonationPaid`, не из webhook напрямую. Донат-оплата = системное действие без юзера: `actorId` не передаётся, поэтому `AuditLogs.actor` = `required: false` и `AuditEntry.actorId` опционально (исправлено в Plan 1 ревью-пассом). Вызов в `.catch`, чтобы аудит не ломал финализацию.
 
-- [ ] **Step 3: Тест идемпотентности (ручной)**
+- [ ] **Step 3: Тесты webhook**
+
+Unit `web/tests/unit/payments/webhook.test.ts` (мокаем payload + getInvoiceStatus + finalize):
+
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const find = vi.fn();
+vi.mock('@payload-config', () => ({ default: {} }));
+vi.mock('payload', () => ({ getPayload: async () => ({ find }) }));
+vi.mock('@/lib/payments/expresspay', () => ({
+  configFromEnv: () => ({ serviceId: '42', secret: '', useCard: true, base: '', token: '' }),
+  getInvoiceStatus: vi.fn(),
+}));
+vi.mock('@/lib/payments/finalize-paid', () => ({ finalizeDonationPaid: vi.fn() }));
+import { POST } from '@/app/api/donations/expresspay/webhook/route';
+import { getInvoiceStatus } from '@/lib/payments/expresspay';
+import { finalizeDonationPaid } from '@/lib/payments/finalize-paid';
+
+const req = (b: Record<string, string>) =>
+  new Request('http://x/webhook', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+
+beforeEach(() => vi.clearAllMocks());
+
+describe('donation webhook', () => {
+  it('unknown invoice → 200, без финализации', async () => {
+    find.mockResolvedValue({ docs: [] });
+    expect((await POST(req({ InvoiceNo: '999', Amount: '25' }))).status).toBe(200);
+    expect(finalizeDonationPaid).not.toHaveBeenCalled();
+  });
+  it('уже paid → idempotent skip (провайдер не опрашивается)', async () => {
+    find.mockResolvedValue({ docs: [{ id: 1, status: 'paid' }] });
+    expect((await POST(req({ InvoiceNo: '555', Amount: '25' }))).status).toBe(200);
+    expect(getInvoiceStatus).not.toHaveBeenCalled();
+  });
+  it('сбой getInvoiceStatus → 503, не финализирует (форж-защита)', async () => {
+    find.mockResolvedValue({ docs: [{ id: 1, status: 'pending' }] });
+    (getInvoiceStatus as any).mockRejectedValue(new Error('down'));
+    expect((await POST(req({ InvoiceNo: '555', Amount: '25' }))).status).toBe(503);
+    expect(finalizeDonationPaid).not.toHaveBeenCalled();
+  });
+  it('провайдер подтверждает paid → finalizeDonationPaid(payload, id)', async () => {
+    find.mockResolvedValue({ docs: [{ id: 1, status: 'pending' }] });
+    (getInvoiceStatus as any).mockResolvedValue('paid');
+    expect((await POST(req({ InvoiceNo: '555', Amount: '25' }))).status).toBe(200);
+    expect(finalizeDonationPaid).toHaveBeenCalledWith(expect.anything(), 1);
+  });
+});
+```
+
+> Concurrency-нюанс (P5-6): два одновременных webhook'а одного invoice оба пройдут проверку «не paid» до апдейта → возможен двойной чек. `finalizeDonationPaid` повторно проверяет `status==='paid'` (сужает окно), но без блокировки. Для MVP-объёмов приемлемо; при росте — advisory-lock по `providerInvoiceId`.
+
+Ручной smoke идемпотентности:
 
 1. Создать донат (Task 7), получить `providerInvoiceId`.
 2. В Payload admin вручную выставить donation `status=pending`.
@@ -859,7 +927,7 @@ export async function POST(req: Request) {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add web/app/api/donations/expresspay/webhook/route.ts web/lib/email/templates/donation-receipt.tsx
+git add web/app/api/donations/expresspay/webhook/route.ts web/lib/payments/finalize-paid.ts web/lib/email/templates/donation-receipt.tsx web/tests/unit/payments/webhook.test.ts
 git commit -m "Plan 5 Task 8: идемпотентный webhook ExpressPay + чек донору
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -1016,7 +1084,7 @@ export default function HelpGeneralPage() {
 ```tsx
 import { notFound } from 'next/navigation';
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { DonationForm } from '@/components/donate/DonationForm';
 import type { Animal } from '@/payload-types';
 
@@ -1040,7 +1108,7 @@ export default async function HelpAnimalPage({ params }: { params: { slug: strin
 ```tsx
 import { notFound } from 'next/navigation';
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { DonationForm } from '@/components/donate/DonationForm';
 import type { Organization } from '@/payload-types';
 
@@ -1126,7 +1194,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```tsx
 import Link from 'next/link';
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { sumPaidByn, donorCount, type DonationRow } from '@/lib/payments/aggregate';
 import { formatByn } from '@/lib/payments/amounts';
 
@@ -1206,7 +1274,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```tsx
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { requireUser } from '@/lib/auth/current-user';
 import { formatByn } from '@/lib/payments/amounts';
 
@@ -1262,7 +1330,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```tsx
 import { getPayload } from 'payload';
-import config from '@/payload.config';
+import config from '@payload-config';
 import { requireOrgAdmin } from '@/lib/auth/current-user';
 import { sumPaidByn, donorCount, type DonationRow } from '@/lib/payments/aggregate';
 import { formatByn } from '@/lib/payments/amounts';
@@ -1355,6 +1423,7 @@ import config from '../payload.config';
 import { configFromEnv, getInvoiceStatus } from '../lib/payments/expresspay';
 import { sendEmail } from '../lib/email/resend-client';
 import { ReconcileAlert } from '../lib/email/templates/reconcile-alert';
+import { finalizeDonationPaid } from '../lib/payments/finalize-paid';
 
 const STALE_MIN = 15; // не трогаем донаты моложе 15 минут (ещё платят)
 
@@ -1375,7 +1444,7 @@ async function main() {
     catch (e) { console.error('[reconcile] status error', d.id, e); stillPending++; continue; }
 
     if (status === 'paid') {
-      await payload.update({ collection: 'donations', id: d.id, overrideAccess: true, data: { status: 'paid', paidAt: new Date().toISOString() } });
+      await finalizeDonationPaid(payload, d.id); // P5-3: та же финализация (чек донору + аудит), что и в webhook
       fixed++;
       console.log(`[reconcile] ${d.id} → paid`);
     } else if (status === 'failed' || status === 'refunded') {
@@ -1397,7 +1466,7 @@ async function main() {
 main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
-> Reconcile закрывает дыру, если webhook не дошёл (сеть/деплой). Чек донору при оплате через reconcile можно слать тем же путём, что в Task 8 — для MVP достаточно пометки `paid`; письмо опционально (добавить вызов `sendEmail` с `DonationReceipt`, если требуется).
+> Reconcile закрывает дыру, если webhook не дошёл (сеть/деплой). Финализация — через общий `finalizeDonationPaid` (Task 8): донор получает тот же чек, что и при webhook (ревью P5-3). `sendEmail`/`ReconcileAlert` здесь — только админ-отчёт о сверке.
 
 - [ ] **Step 3: `package.json` + `railway.json` + `.env.example`**
 

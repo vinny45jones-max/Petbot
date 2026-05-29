@@ -142,7 +142,7 @@ export const AdoptionInquiries: CollectionConfig = {
 ```ts
 import { AdoptionInquiries } from './collections/AdoptionInquiries';
 // ...
-collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, Organizations, IntakeFacilities, Animals, AdoptionInquiries],
+collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals, AdoptionInquiries],
 ```
 
 - [ ] **Step 3: Сгенерировать types**
