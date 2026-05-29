@@ -22,6 +22,9 @@
 # production
 /build
 
+# payload local media uploads (fallback без R2)
+/media/
+
 # misc
 .DS_Store
 *.pem
