@@ -1,7 +1,7 @@
 import type { Payload } from 'payload';
 
 export interface AuditEntry {
-  actorId?: string | number; // optional: системные действия (вебхуки платежей, cron) пишутся без юзера; Postgres user.id = number, string для мок/совместимости
+  actorId?: number; // optional: системные действия (вебхуки платежей, cron) пишутся без юзера; Postgres user.id = number
   action: string;
   targetType: string;
   targetId: string;
@@ -12,7 +12,7 @@ export async function recordAuditLog(payload: Payload, entry: AuditEntry): Promi
   await payload.create({
     collection: 'audit-logs',
     data: {
-      actor: entry.actorId as number | undefined,
+      actor: entry.actorId,
       action: entry.action,
       targetType: entry.targetType,
       targetId: entry.targetId,

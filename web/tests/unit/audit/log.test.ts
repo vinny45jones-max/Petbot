@@ -6,7 +6,7 @@ describe('recordAuditLog', () => {
     const create = vi.fn().mockResolvedValue({ id: 'log-1' });
     const payload = { create } as any;
     await recordAuditLog(payload, {
-      actorId: 'u1',
+      actorId: 1,
       action: 'user.role.changed',
       targetType: 'user',
       targetId: 'u2',
@@ -15,7 +15,7 @@ describe('recordAuditLog', () => {
     expect(create).toHaveBeenCalledWith({
       collection: 'audit-logs',
       data: expect.objectContaining({
-        actor: 'u1',
+        actor: 1,
         action: 'user.role.changed',
         targetType: 'user',
         targetId: 'u2',

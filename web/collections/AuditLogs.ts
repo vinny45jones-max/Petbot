@@ -6,7 +6,7 @@ export const AuditLogs: CollectionConfig = {
   admin: { useAsTitle: 'action', defaultColumns: ['action', 'targetType', 'targetId', 'createdAt'] },
   access: {
     read: ({ req: { user } }) => canModerateContent(user as any),
-    create: () => true,
+    create: () => false, // записи только через recordAuditLog (Local API обходит access); публичный REST-create закрыт
     update: () => false,
     delete: ({ req: { user } }) => user?.role === 'superadmin',
   },

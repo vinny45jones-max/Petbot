@@ -14,7 +14,7 @@ import { buildR2StorageConfig, type R2Env } from './lib/storage/r2-adapter.ts';
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // R2 только при наличии ключей; иначе Payload пишет в локальный media/ (dev/CI без Cloudflare).
-const hasR2 = !!process.env.R2_ACCOUNT_ID && !!process.env.R2_ACCESS_KEY_ID;
+const hasR2 = !!process.env.R2_ACCOUNT_ID && !!process.env.R2_ACCESS_KEY_ID && !!process.env.R2_SECRET_ACCESS_KEY && !!process.env.R2_BUCKET;
 const r2Plugins = hasR2
   ? [s3Storage({ collections: { media: { prefix: 'media' } }, ...buildR2StorageConfig(process.env as R2Env) })]
   : [];
