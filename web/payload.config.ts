@@ -9,6 +9,7 @@ import { Media } from './collections/Media.ts';
 import { AuditLogs } from './collections/AuditLogs.ts';
 import { NotificationPreferences } from './collections/NotificationPreferences.ts';
 import { s3Storage } from '@payloadcms/storage-s3';
+import { resendAdapter } from '@payloadcms/email-resend';
 import { buildR2StorageConfig, type R2Env } from './lib/storage/r2-adapter.ts';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,13 @@ export default buildConfig({
   },
   collections: [Users, Cities, Media, AuditLogs, NotificationPreferences],
   plugins: r2Plugins,
+  email: process.env.RESEND_API_KEY
+    ? resendAdapter({
+        apiKey: process.env.RESEND_API_KEY,
+        defaultFromAddress: process.env.RESEND_FROM_EMAIL || 'noreply@pet-aggregator.by',
+        defaultFromName: 'Pet Aggregator BY',
+      })
+    : undefined,
   editor: lexicalEditor({}),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
