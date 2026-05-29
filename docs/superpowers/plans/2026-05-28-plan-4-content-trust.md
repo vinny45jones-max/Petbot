@@ -6,7 +6,7 @@
 
 **Architecture:** Контент-сущности — обычные Payload-коллекции с публичным `read` и админ-`write`, рендер через SSR-страницы (`getPayload`). Trust & Safety реализуется тонким слоем `lib/security/*` (Turnstile-верификация + rate-limit), подключаемым в публичные API-роуты (`/api/*/route.ts`). Антиспам комментариев — чистая эвристика + shadow-ban через `Comment.status`. §17.6 — чистое ядро пересчёта (`lib/urgency-recalc.ts`) + cron-скрипт (`scripts/urgency-recalc.ts`), запускаемый Railway Cron раз в сутки.
 
-**Tech Stack:** Next.js 14 (App Router, RSC) + Payload CMS 3 + Postgres + Cloudflare Turnstile + Resend + Telegram Bot API + Vitest + Playwright (всё уже стоит из Plan 1).
+**Tech Stack:** Next.js 15 (App Router, RSC) + Payload CMS 3 + Postgres + Cloudflare Turnstile + Resend + Telegram Bot API + Vitest + Playwright (всё уже стоит из Plan 1).
 
 **Обновлённый roadmap MVP (после реального исполнения Plan 1–3):**
 

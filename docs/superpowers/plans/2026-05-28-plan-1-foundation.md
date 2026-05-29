@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Поднять Next.js 14 + Payload CMS 3 на Railway с Postgres, R2 storage, двумя способами авторизации (Telegram OAuth + email/password), базовыми моделями (User, City, Media, AuditLog, NotificationPreference), CI/CD и observability — готовый каркас для разработки каталога в Plan 2.
+**Goal:** Поднять Next.js 15 + Payload CMS 3 на Railway с Postgres, R2 storage, двумя способами авторизации (Telegram OAuth + email/password), базовыми моделями (User, City, Media, AuditLog, NotificationPreference), CI/CD и observability — готовый каркас для разработки каталога в Plan 2.
 
-**Architecture:** Next.js 14 App Router монолитно держит публичные страницы и Payload-админку. Payload владеет схемой БД, auth, media pipeline. Postgres на Railway (managed). Медиа в Cloudflare R2 через `@payloadcms/storage-s3`. Auth: Payload built-in JWT cookies + кастомный Telegram-endpoint для валидации widget hash. CI/CD: GitHub Actions → Railway deploy on push to `main`.
+**Architecture:** Next.js 15 App Router монолитно держит публичные страницы и Payload-админку. Payload владеет схемой БД, auth, media pipeline. Postgres на Railway (managed). Медиа в Cloudflare R2 через `@payloadcms/storage-s3`. Auth: Payload built-in JWT cookies + кастомный Telegram-endpoint для валидации widget hash. CI/CD: GitHub Actions → Railway deploy on push to `main`.
 
-**Tech Stack:** Next.js 14+ (App Router) + TypeScript + Tailwind CSS + shadcn/ui + Payload CMS 3 + Postgres 16 + Cloudflare R2 + Resend + Sentry + Plausible + Vitest + Playwright + GitHub Actions + Railway.
+**Tech Stack:** Next.js 15 (App Router) + TypeScript + Tailwind CSS + shadcn/ui + Payload CMS 3 + Postgres 16 + Cloudflare R2 + Resend + Sentry + Plausible + Vitest + Playwright + GitHub Actions + Railway.
 
 **Roadmap (весь MVP, 6 планов):**
 
@@ -120,7 +120,7 @@ railway.json                            # Railway config
 
 ## Tasks
 
-### Task 1: Initialize Next.js 14 + TypeScript + Tailwind
+### Task 1: Initialize Next.js 15 + TypeScript + Tailwind
 
 **Files:**
 - Create: `web/` (новая директория)
@@ -171,7 +171,7 @@ cd web && npm run dev
 
 ```bash
 git add web/ .gitignore
-git commit -m "Plan 1 Task 1: инициализация Next.js 14 + Tailwind + shadcn/ui
+git commit -m "Plan 1 Task 1: инициализация Next.js 15 + Tailwind + shadcn/ui
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -3187,7 +3187,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```markdown
 # Pet Aggregator BY — Web
 
-Next.js 14 + Payload CMS 3 веб-приложение белорусского агрегатора животных.
+Next.js 15 + Payload CMS 3 веб-приложение белорусского агрегатора животных.
 
 ## Локальная разработка
 

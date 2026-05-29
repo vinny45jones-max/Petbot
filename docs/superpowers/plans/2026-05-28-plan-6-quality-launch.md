@@ -6,7 +6,7 @@
 
 **Architecture:** Бизнес-логика выносится в чистые модули `web/lib/*` (форматтеры, plural-правила, TOTP, шифрование секрета, подпись 2FA-cookie, retention бэкапов, предикаты maintenance) — это даёт быстрые unit-тесты без сети и БД. UI-слой (тоггл шрифта, onboarding, Tawk, страница 2FA) — тонкие client-компоненты поверх этих модулей. 2FA-гейт для Payload-админки `/admin` реализуется на Edge через `middleware.ts` (Web Crypto, без node-зависимостей), туда же ложится maintenance-mode. i18n — режим next-intl «без routing» (без сегмента `[locale]`): все строки выносятся в `messages/ru.json`, добавление `be`/`en` в фазе 2-3 = заполнение словарей.
 
-**Tech Stack:** Next.js 14 (App Router, RSC, Edge middleware) + Payload CMS 3 + Postgres + Cloudflare R2 + next-intl 3 + otplib + qrcode + `node:crypto` / Web Crypto + Resend + Railway Cron + Vitest + Playwright (база из Plan 1).
+**Tech Stack:** Next.js 15 (App Router, RSC, Edge middleware) + Payload CMS 3 + Postgres + Cloudflare R2 + next-intl 3 + otplib + qrcode + `node:crypto` / Web Crypto + Resend + Railway Cron + Vitest + Playwright (база из Plan 1).
 
 **Roadmap-позиция:** Plan 1–5 ✅ (foundation; catalog+orgs; posting/cabinets; content&trust+§17.6; donations ExpressPay/ЕРИП). **Plan 6 = Quality + Launch (финал MVP, фаза 1).** Дальше — фаза 2 (чат, SMS, UGC, recurring, saved searches — §10/§16.3).
 
@@ -14,7 +14,7 @@
 
 ## Что уже существует (из Plan 1–5) — переиспользуем, НЕ дублируем
 
-- **Каркас:** Next.js 14 App Router в `web/`, Payload CMS 3, Postgres, R2, деплой Railway, Sentry, Plausible, CI `.github/workflows/ci.yml` (Lighthouse + axe-core из Plan 1 Task 20).
+- **Каркас:** Next.js 15 App Router в `web/`, Payload CMS 3, Postgres, R2, деплой Railway, Sentry, Plausible, CI `.github/workflows/ci.yml` (Lighthouse + axe-core из Plan 1 Task 20).
 - **Layout:** `web/app/layout.tsx` (`RootLayout`, `<html lang="ru">`, шрифт `Inter` с subset `cyrillic`, `import './globals.css'`), `web/components/layout/Header.tsx`, `web/components/layout/Footer.tsx`, `web/components/compliance/CookieBanner.tsx` (хранит `localStorage['cookie-consent'] === 'accepted'`).
 - **Auth/сессии:** `web/lib/auth/session.ts` — `issueSessionToken(user: {id,email})` (подпись `payload-token` JWT через `PAYLOAD_SECRET`, `jsonwebtoken`) + `setSessionCookie(token)` (httpOnly cookie `payload-token`). Логины: TG OAuth (Plan 1 Task 11/13), email/пароль (Payload native), magic-link (Task 14). RBAC `web/lib/auth/rbac.ts` (`isAdmin`, `canManageOrganization`). Роли в `web/collections/Users.ts` (5 ролей: citizen, org_admin, moderator, superadmin, …).
 - **Модерация:** идёт в Payload-админке `/admin/collections/animals/...` — туда заходят `moderator`/`superadmin` (цель 2FA-гейта).
@@ -1590,7 +1590,7 @@ export function animalSitemapEntry(doc: AnimalDoc): MetadataRoute.Sitemap[number
 }
 ```
 
-> `MetadataRoute.Sitemap` поддерживает поле `images: string[]` на записи начиная с **Next.js 14.1** — Next сам генерирует `<image:image>` в XML. Проверить версию: `cd web && npm ls next` (≥14.1; Plan 1 ставил «Next 14+» — при необходимости `npm i next@latest`). Тип `AnimalDoc` расширить полем `media?: { url?: string }[]` (если ещё не описано).
+> `MetadataRoute.Sitemap` поддерживает поле `images: string[]` на записи начиная с **Next.js 14.1** — Next сам генерирует `<image:image>` в XML. Проверить версию: `cd web && npm ls next` (≥14.1; Plan 1 ставит Next 15 — при необходимости `npm i next@latest`). Тип `AnimalDoc` расширить полем `media?: { url?: string }[]` (если ещё не описано).
 
 - [ ] **Step 4: Запустить — PASS**
 

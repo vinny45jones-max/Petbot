@@ -6,7 +6,7 @@
 
 **Architecture:** Поверх Plan 1 (auth/Users/Media/Resend/AuditLog) и Plan 2 (Animals/Organizations/IntakeFacilities, lib каталога). Создание животного — через server actions с RBAC: гражданин получает `ownerType=citizen` + `ownerUser`, админ организации — `ownerType=organization` + `organization` (и опционально `intakeFacility` для модели А службы отлова, §17.7). Все новые объявления уходят в `status=pending_review`; модератор апрувит в Payload-админке → `afterChange`-хук шлёт email владельцу. Заявка на усыновление пишет `AdoptionInquiry` и уведомляет владельца/организацию (email + Telegram админ-канал). Личные кабинеты (`/me/*`, `/org/[slug]/*`) — SSR с guard'ами через новый RSC-helper `getCurrentUser`.
 
-**Tech Stack:** Next.js 14 (App Router, Server Actions, RSC), Payload CMS 3 (Local API), TypeScript, Tailwind + shadcn/ui, Resend + react-email, Telegram Bot API (уведомления), Vitest (unit), Playwright (e2e).
+**Tech Stack:** Next.js 15 (App Router, Server Actions, RSC), Payload CMS 3 (Local API), TypeScript, Tailwind + shadcn/ui, Resend + react-email, Telegram Bot API (уведомления), Vitest (unit), Playwright (e2e).
 
 **Что уже готово (не переделывать):**
 - Plan 1: `lib/auth/rbac.ts` (`isAdmin`, `canManageOrganization`), `lib/email/resend-client.ts` (`sendEmail({to,subject,react})`), `lib/audit/log.ts` (`recordAuditLog`), коллекции `users`/`media`/`audit-logs`/`notification-preferences`, Payload auth (cookie `payload-token`).
@@ -205,7 +205,7 @@ export async function requireOrgAdmin(orgId: string): Promise<User> {
 }
 ```
 
-> Next.js 14: `headers()` синхронный. При апгрейде на Next 15 — `await headers()` и убрать `as any`.
+> Next.js 15: `headers()` асинхронный — использовать `await headers()` (без `as any`).
 
 - [ ] **Step 2: e2e — кабинет требует логин**
 
@@ -2581,7 +2581,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Известные допущения для исполнителя
 
-- Next.js 14: `headers()`/`searchParams`/`params` синхронные. На Next 15 — обернуть в `await`, убрать `as any` в `current-user.ts`.
+- Next.js 15: `headers()`/`searchParams`/`params` асинхронные — обернуть в `await`, типы `Promise<...>`, без `as any` (в т.ч. в `current-user.ts`).
 - Видимость заявок владельцу/организации — через серверные запросы с `overrideAccess: true` (citizen: фильтр `applicant`/`ownerUser`; org: двухшаговый запрос через id животных организации), а не через collection-level `read`. Проверка прав делается в server action `updateInquiryStatus` и на guard'ах страниц.
 - `payload.create({ collection: 'media', file: { data, mimetype, name, size } })` — формат Local API upload Payload 3; при иной сигнатуре свериться с версией. `uploadPhoto` валидирует MIME (`image/jpeg|png|webp`) и размер (≤8 МБ) до создания Media; rate-limit/Turnstile — Plan 4.
 - Поле `_verified: true` в seed тест-юзеров (Task 18) — обход email-верификации Payload auth для теста; в production функции не выполняются.

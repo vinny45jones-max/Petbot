@@ -4,9 +4,9 @@
 
 **Goal:** Построить публичный каталог животных, организаций и муниципальных служб отлова с критической вертикалью «обратный отсчёт до эвтаназии», полнотекстовым поиском и SEO. Наполнение — через Payload-админку и seed; self-service формы (citizen wizard, кабинет org_admin) — отдельный Plan 3.
 
-**Architecture:** Поверх фундамента Plan 1 (Next.js 14 App Router + Payload CMS 3 + Postgres + Cloudflare R2 + готовые коллекции Users/Cities/Media и `lib/auth/rbac`) добавляются три связанные коллекции — Organization, IntakeFacility, Animal. Публичные страницы — SSR через Payload Local API. Критическая вертикаль отлова реализована через `Animal.intakeFacility` + `legalDeadlineDate` + `urgencyLevel` (поле денормализовано для сортировки/фильтра; live-countdown в UI считается из `legalDeadlineDate`; ежедневный пересчёт cron'ом — в Plan 4). Many-to-many «организация ↔ админы» делается штатным Payload relationship + join-field, поэтому синхронная `canManageOrganization` из Plan 1 работает без изменений. Поиск — Postgres full-text (`tsvector` generated column + GIN). SEO — JSON-LD, split-sitemap, canonical URLs.
+**Architecture:** Поверх фундамента Plan 1 (Next.js 15 App Router + Payload CMS 3 + Postgres + Cloudflare R2 + готовые коллекции Users/Cities/Media и `lib/auth/rbac`) добавляются три связанные коллекции — Organization, IntakeFacility, Animal. Публичные страницы — SSR через Payload Local API. Критическая вертикаль отлова реализована через `Animal.intakeFacility` + `legalDeadlineDate` + `urgencyLevel` (поле денормализовано для сортировки/фильтра; live-countdown в UI считается из `legalDeadlineDate`; ежедневный пересчёт cron'ом — в Plan 4). Many-to-many «организация ↔ админы» делается штатным Payload relationship + join-field, поэтому синхронная `canManageOrganization` из Plan 1 работает без изменений. Поиск — Postgres full-text (`tsvector` generated column + GIN). SEO — JSON-LD, split-sitemap, canonical URLs.
 
-**Tech Stack:** Next.js 14 (App Router, RSC), Payload CMS 3 (Postgres adapter, drizzle), TypeScript, Tailwind + shadcn/ui, Cloudflare R2, Vitest (unit), Playwright (e2e).
+**Tech Stack:** Next.js 15 (App Router, RSC), Payload CMS 3 (Postgres adapter, drizzle), TypeScript, Tailwind + shadcn/ui, Cloudflare R2, Vitest (unit), Playwright (e2e).
 
 **Что уже готово из Plan 1 (не переделывать):**
 - `web/collections/Users.ts` (5 ролей), `web/collections/Cities.ts`, `web/collections/Media.ts`, `web/collections/AuditLogs.ts`, `web/collections/NotificationPreferences.ts`
@@ -3274,7 +3274,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Известные допущения для исполнителя
 
-- `searchParams`/`params` типизированы как синхронные объекты (Next.js 14, как в Plan 1). При переходе на Next.js 15 обернуть в `await` и сменить типы на `Promise<...>`.
+- `searchParams`/`params` в Next.js 15 — асинхронные: типизировать как `Promise<...>` и читать через `await` (`props.searchParams` → `await props.searchParams`).
 - Имена колонок в FTS-миграции (Task 7) предполагают дефолтный snake_case Payload Postgres-adapter. Сверить `\d animals` в psql перед применением; при расхождении поправить SQL миграции.
 - `payload.count(...)` (Task 16) доступен в Payload 3; если версия не поддерживает — заменить на `find({ limit: 0 }).totalDocs`.
 

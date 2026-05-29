@@ -6,7 +6,7 @@
 
 **Architecture:** Платёжный слой изолирован в `lib/payments/*` (чистые ядра отдельно от HTTP-клиента с DI `fetch`). Поток §7.3: форма → `POST /api/donations/expresspay` создаёт `Donation(pending)` + счёт в ExpressPay → redirect/QR ЕРИП → пользователь платит → ExpressPay шлёт webhook на `/api/donations/expresspay/webhook` → идемпотентная пометка `paid` (по уникальному `providerInvoiceId`, с подтверждением статуса у провайдера) → email-чек. Суточный cron сверяет «зависшие» `pending`. Анти-бот (Turnstile) и rate-limit переиспользуются из Plan 4 (`lib/security/*`).
 
-**Tech Stack:** Next.js 14 (App Router, RSC, Route Handlers) + Payload CMS 3 + Postgres + ExpressPay API (express-pay.by, ЕРИП) + Resend + `node:crypto` (HMAC-подпись) + Vitest + Playwright.
+**Tech Stack:** Next.js 15 (App Router, RSC, Route Handlers) + Payload CMS 3 + Postgres + ExpressPay API (express-pay.by, ЕРИП) + Resend + `node:crypto` (HMAC-подпись) + Vitest + Playwright.
 
 **Roadmap-позиция:** Plan 1–4 ✅ (foundation, catalog, posting/cabinets, content&trust+§17.6). **Plan 5 = донаты** (этот). Plan 6 = Quality + Launch (i18n, 2FA модераторов, «Шрифт крупнее», status page, beta, перевод платежей в прод-режим).
 
