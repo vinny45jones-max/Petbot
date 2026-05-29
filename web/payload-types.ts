@@ -123,6 +123,21 @@ export interface User {
   id: number;
   firstName?: string | null;
   lastName?: string | null;
+  photoUrl?: string | null;
+  phone?: string | null;
+  telegramId?: string | null;
+  telegramUsername?: string | null;
+  role: 'guest' | 'citizen' | 'org_admin' | 'moderator' | 'superadmin';
+  isBlocked?: boolean | null;
+  lastSeenAt?: string | null;
+  /**
+   * Подтверждено что 14+
+   */
+  ageConfirmed: boolean;
+  /**
+   * Согласие 99-З
+   */
+  consentPersonalData: boolean;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -220,6 +235,15 @@ export interface PayloadMigration {
 export interface UsersSelect<T extends boolean = true> {
   firstName?: T;
   lastName?: T;
+  photoUrl?: T;
+  phone?: T;
+  telegramId?: T;
+  telegramUsername?: T;
+  role?: T;
+  isBlocked?: T;
+  lastSeenAt?: T;
+  ageConfirmed?: T;
+  consentPersonalData?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;

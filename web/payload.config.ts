@@ -3,6 +3,7 @@ import { postgresAdapter } from '@payloadcms/db-postgres';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Users } from './collections/Users.ts';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -11,16 +12,7 @@ export default buildConfig({
     user: 'users',
     meta: { titleSuffix: ' — Pet Aggregator BY Admin' },
   },
-  collections: [
-    {
-      slug: 'users',
-      auth: { tokenExpiration: 60 * 60 * 24 * 30, verify: true },
-      fields: [
-        { name: 'firstName', type: 'text' },
-        { name: 'lastName', type: 'text' },
-      ],
-    },
-  ],
+  collections: [Users],
   editor: lexicalEditor({}),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
