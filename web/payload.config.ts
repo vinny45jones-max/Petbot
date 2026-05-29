@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { Users } from './collections/Users.ts';
 import { Cities } from './collections/Cities.ts';
 import { Media } from './collections/Media.ts';
+import { AuditLogs } from './collections/AuditLogs.ts';
 import { s3Storage } from '@payloadcms/storage-s3';
 import { buildR2StorageConfig, type R2Env } from './lib/storage/r2-adapter.ts';
 
@@ -22,7 +23,7 @@ export default buildConfig({
     user: 'users',
     meta: { titleSuffix: ' — Pet Aggregator BY Admin' },
   },
-  collections: [Users, Cities, Media],
+  collections: [Users, Cities, Media, AuditLogs],
   plugins: r2Plugins,
   editor: lexicalEditor({}),
   secret: process.env.PAYLOAD_SECRET || '',
