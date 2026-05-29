@@ -932,6 +932,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ### Task 6: Cities-коллекция + seed РБ
 
+> ⚠️ **КОНВЕНЦИЯ ИМПОРТОВ (T6 и все след. collection-задачи, установлено в T5).** В `payload.config.ts` и `collections/*.ts` value-импорты делать **относительными с `.ts`** (`./collections/Cities.ts`, `../lib/...ts`), НЕ `@/` и НЕ extensionless — иначе `payload generate:types/importmap` падает (Payload CLI = native ESM Node 24, без tsconfig-paths). `import type` можно `@/` (стирается). Генерацию звать `npm run generate:types` / `generate:importmap` (с `--disable-transpile`). `allowImportingTsExtensions:true` уже в tsconfig. Разбор: `docs/solutions/payload/dual-env-config-imports.md`.
+
 **Files:**
 - Create: `web/collections/Cities.ts`
 - Create: `web/lib/seeds/cities-by.ts`
