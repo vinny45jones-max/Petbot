@@ -71,6 +71,7 @@ export interface Config {
     cities: City;
     media: Media;
     'audit-logs': AuditLog;
+    'notification-preferences': NotificationPreference;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,6 +83,7 @@ export interface Config {
     cities: CitiesSelect<false> | CitiesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'audit-logs': AuditLogsSelect<false> | AuditLogsSelect<true>;
+    'notification-preferences': NotificationPreferencesSelect<false> | NotificationPreferencesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -249,6 +251,24 @@ export interface AuditLog {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notification-preferences".
+ */
+export interface NotificationPreference {
+  id: number;
+  user: number | User;
+  emailAdoptionInquiry?: boolean | null;
+  emailModerationResult?: boolean | null;
+  emailDonationReceipt?: boolean | null;
+  /**
+   * Города, по которым приходят алерты о срочных животных
+   */
+  emailUrgentInCities?: (number | City)[] | null;
+  emailWeeklyDigest?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -286,6 +306,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'audit-logs';
         value: number | AuditLog;
+      } | null)
+    | ({
+        relationTo: 'notification-preferences';
+        value: number | NotificationPreference;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -440,6 +464,20 @@ export interface AuditLogsSelect<T extends boolean = true> {
   targetType?: T;
   targetId?: T;
   meta?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "notification-preferences_select".
+ */
+export interface NotificationPreferencesSelect<T extends boolean = true> {
+  user?: T;
+  emailAdoptionInquiry?: T;
+  emailModerationResult?: T;
+  emailDonationReceipt?: T;
+  emailUrgentInCities?: T;
+  emailWeeklyDigest?: T;
   updatedAt?: T;
   createdAt?: T;
 }
