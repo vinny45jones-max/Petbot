@@ -5,6 +5,12 @@ import { formatAge, formatAnimalTitle } from '@/lib/format';
 import { PhotoCarousel } from '@/components/catalog/PhotoCarousel';
 import { IntakeFacilityBlock } from '@/components/catalog/IntakeFacilityBlock';
 import type { Animal } from '@/payload-types';
+import type { Metadata } from 'next';
+import { buildAnimalMeta } from '@/lib/meta';
+import { buildAnimalJsonLd } from '@/lib/jsonld';
+import { JsonLd } from '@/components/JsonLd';
+
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 async function getAnimal(slug: string): Promise<Animal | null> {
   const payload = await getPayload({ config });
@@ -15,6 +21,13 @@ async function getAnimal(slug: string): Promise<Animal | null> {
     depth: 2,
   });
   return (res.docs[0] as Animal) ?? null;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ city: string; species: string; slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const animal = await getAnimal(slug);
+  if (!animal) return { title: 'Не найдено' };
+  return buildAnimalMeta(animal, BASE);
 }
 
 export default async function AnimalDetailPage({ params }: { params: Promise<{ city: string; species: string; slug: string }> }) {
@@ -30,6 +43,7 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
 
   return (
     <main className="mx-auto grid max-w-5xl gap-8 px-4 py-8 md:grid-cols-2">
+      <JsonLd data={buildAnimalJsonLd(animal, BASE)} />
       <PhotoCarousel photos={photos} />
       <div className="space-y-4">
         <h1 className="text-3xl font-bold">{formatAnimalTitle(animal)}</h1>
