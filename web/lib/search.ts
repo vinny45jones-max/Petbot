@@ -14,12 +14,15 @@ export function normalizeQuery(q: string): string {
 export async function searchAnimalIds(payload: Payload, query: string, limit = 200): Promise<number[]> {
   const q = normalizeQuery(query);
   if (!q) return [];
+  // tsvector считается inline (нет stored-колонки — см. payload.config onInit).
+  // Выражение ДОЛЖНО совпадать с expression-индексом animals_search_idx, чтобы планировщик его использовал.
+  const tsv = sql`(setweight(to_tsvector('russian', coalesce(name, '')), 'A') || setweight(to_tsvector('russian', coalesce(description_plain, '')), 'B'))`;
   const result: any = await (payload.db as any).drizzle.execute(sql`
     SELECT id
     FROM animals
     WHERE status = 'published'
-      AND search_vector @@ plainto_tsquery('russian', ${q})
-    ORDER BY ts_rank(search_vector, plainto_tsquery('russian', ${q})) DESC
+      AND ${tsv} @@ plainto_tsquery('russian', ${q})
+    ORDER BY ts_rank(${tsv}, plainto_tsquery('russian', ${q})) DESC
     LIMIT ${limit}
   `);
   return (result?.rows ?? []).map((r: any) => Number(r.id));

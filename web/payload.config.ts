@@ -51,16 +51,29 @@ export default buildConfig({
   onInit: async (payload) => {
     const db = (payload.db as any).drizzle;
     await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS pet_number_seq START WITH 1 INCREMENT BY 1`);
-    // FTS (Task 7): generated tsvector (name=A, description_plain=B) + GIN.
-    // raw SQL — push такие объекты не создаёт; IF NOT EXISTS делает идемпотентным.
+    // Самокоррекция sequence: подтянуть до max(pet_number), чтобы nextval никогда не дал дубль.
+    // push при пересоздании схемы может сбросить sequence к 1 → без этого create падает на unique.
+    // Только вперёд (если seq уже опережает данные — не трогаем, номера не переиспользуются).
     await db.execute(sql`
-      ALTER TABLE animals
-      ADD COLUMN IF NOT EXISTS search_vector tsvector
-      GENERATED ALWAYS AS (
+      DO $$
+      DECLARE m bigint; cur bigint;
+      BEGIN
+        SELECT COALESCE(MAX(pet_number), 0) INTO m FROM animals;
+        SELECT last_value INTO cur FROM pet_number_seq;
+        IF m >= cur THEN
+          PERFORM setval('pet_number_seq', m, true);
+        END IF;
+      END $$;
+    `);
+    // FTS (Task 7): expression GIN-индекс (name=A, description_plain=B). БЕЗ stored-колонки —
+    // иначе push (dev) видит чужую колонку search_vector и виснет на data-loss промпте,
+    // когда в таблице есть строки. Запрос (lib/search.ts) считает тот же tsvector inline;
+    // индекс лишь ускоряет @@-матч и не теряет данные при возможном пересоздании push'ем.
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS animals_search_idx ON animals USING GIN ((
         setweight(to_tsvector('russian', coalesce(name, '')), 'A') ||
         setweight(to_tsvector('russian', coalesce(description_plain, '')), 'B')
-      ) STORED
+      ))
     `);
-    await db.execute(sql`CREATE INDEX IF NOT EXISTS animals_search_idx ON animals USING GIN (search_vector)`);
   },
 });
