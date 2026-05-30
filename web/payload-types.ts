@@ -74,6 +74,7 @@ export interface Config {
     'notification-preferences': NotificationPreference;
     'magic-link-tokens': MagicLinkToken;
     organizations: Organization;
+    intakeFacilities: IntakeFacility;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -92,6 +93,7 @@ export interface Config {
     'notification-preferences': NotificationPreferencesSelect<false> | NotificationPreferencesSelect<true>;
     'magic-link-tokens': MagicLinkTokensSelect<false> | MagicLinkTokensSelect<true>;
     organizations: OrganizationsSelect<false> | OrganizationsSelect<true>;
+    intakeFacilities: IntakeFacilitiesSelect<false> | IntakeFacilitiesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -363,6 +365,47 @@ export interface MagicLinkToken {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "intakeFacilities".
+ */
+export interface IntakeFacility {
+  id: number;
+  name: string;
+  slug?: string | null;
+  city?: (number | null) | City;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  /**
+   * Дней содержания по закону до возможной эвтаназии (хранится в БД, правит модератор)
+   */
+  legalHoldDays: number;
+  description?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  contactTgUrl?: string | null;
+  viberUrl?: string | null;
+  /**
+   * Муниципальная служба (а не частный приют)
+   */
+  isMunicipal?: boolean | null;
+  isPublished?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -412,6 +455,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'organizations';
         value: number | Organization;
+      } | null)
+    | ({
+        relationTo: 'intakeFacilities';
+        value: number | IntakeFacility;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -620,6 +667,26 @@ export interface OrganizationsSelect<T extends boolean = true> {
   isVerified?: T;
   isPublished?: T;
   admins?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "intakeFacilities_select".
+ */
+export interface IntakeFacilitiesSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  city?: T;
+  address?: T;
+  phone?: T;
+  email?: T;
+  legalHoldDays?: T;
+  description?: T;
+  contactTgUrl?: T;
+  viberUrl?: T;
+  isMunicipal?: T;
+  isPublished?: T;
   updatedAt?: T;
   createdAt?: T;
 }
