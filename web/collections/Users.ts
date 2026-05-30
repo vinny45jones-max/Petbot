@@ -58,6 +58,13 @@ export const Users: CollectionConfig = {
     },
     { name: 'lastSeenAt', type: 'date', admin: { readOnly: true } },
     {
+      name: 'organizations',
+      type: 'join',
+      collection: 'organizations',
+      on: 'admins',
+      admin: { description: 'Организации, где пользователь — админ' },
+    },
+    {
       name: 'ageConfirmed',
       type: 'checkbox',
       required: true,

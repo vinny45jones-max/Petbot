@@ -73,12 +73,17 @@ export interface Config {
     'audit-logs': AuditLog;
     'notification-preferences': NotificationPreference;
     'magic-link-tokens': MagicLinkToken;
+    organizations: Organization;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    users: {
+      organizations: 'organizations';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     cities: CitiesSelect<false> | CitiesSelect<true>;
@@ -86,6 +91,7 @@ export interface Config {
     'audit-logs': AuditLogsSelect<false> | AuditLogsSelect<true>;
     'notification-preferences': NotificationPreferencesSelect<false> | NotificationPreferencesSelect<true>;
     'magic-link-tokens': MagicLinkTokensSelect<false> | MagicLinkTokensSelect<true>;
+    organizations: OrganizationsSelect<false> | OrganizationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -141,6 +147,14 @@ export interface User {
   isBlocked?: boolean | null;
   lastSeenAt?: string | null;
   /**
+   * Организации, где пользователь — админ
+   */
+  organizations?: {
+    docs?: (number | Organization)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
+  /**
    * Подтверждено что 14+
    */
   ageConfirmed: boolean;
@@ -171,14 +185,67 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "cities".
+ * via the `definition` "organizations".
  */
-export interface City {
+export interface Organization {
   id: number;
-  nameRu: string;
-  nameBe: string;
-  region: 'Минская' | 'Брестская' | 'Витебская' | 'Гомельская' | 'Гродненская' | 'Могилёвская';
-  slug: string;
+  name: string;
+  /**
+   * Генерируется из названия, если пусто
+   */
+  slug?: string | null;
+  /**
+   * УНП организации
+   */
+  unp?: string | null;
+  description?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  logo?: (number | null) | Media;
+  coverPhoto?: (number | null) | Media;
+  city?: (number | null) | City;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  tgUrl?: string | null;
+  viberUrl?: string | null;
+  vkUrl?: string | null;
+  instagramUrl?: string | null;
+  websiteUrl?: string | null;
+  donationBankDetails?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  eripServiceCode?: string | null;
+  isVerified?: boolean | null;
+  isPublished?: boolean | null;
+  /**
+   * Пользователи-администраторы этой организации
+   */
+  admins?: (number | User)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -228,6 +295,19 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cities".
+ */
+export interface City {
+  id: number;
+  nameRu: string;
+  nameBe: string;
+  region: 'Минская' | 'Брестская' | 'Витебская' | 'Гомельская' | 'Гродненская' | 'Могилёвская';
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -328,6 +408,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'magic-link-tokens';
         value: number | MagicLinkToken;
+      } | null)
+    | ({
+        relationTo: 'organizations';
+        value: number | Organization;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -385,6 +469,7 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   isBlocked?: T;
   lastSeenAt?: T;
+  organizations?: T;
   ageConfirmed?: T;
   consentPersonalData?: T;
   updatedAt?: T;
@@ -507,6 +592,34 @@ export interface MagicLinkTokensSelect<T extends boolean = true> {
   tokenHash?: T;
   user?: T;
   consumedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "organizations_select".
+ */
+export interface OrganizationsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  unp?: T;
+  description?: T;
+  logo?: T;
+  coverPhoto?: T;
+  city?: T;
+  address?: T;
+  phone?: T;
+  email?: T;
+  tgUrl?: T;
+  viberUrl?: T;
+  vkUrl?: T;
+  instagramUrl?: T;
+  websiteUrl?: T;
+  donationBankDetails?: T;
+  eripServiceCode?: T;
+  isVerified?: T;
+  isPublished?: T;
+  admins?: T;
   updatedAt?: T;
   createdAt?: T;
 }
