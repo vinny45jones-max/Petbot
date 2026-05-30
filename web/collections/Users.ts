@@ -43,6 +43,7 @@ export const Users: CollectionConfig = {
         { label: 'Суперадмин', value: 'superadmin' },
       ],
       access: {
+        create: ({ req: { user } }) => user?.role === 'superadmin',
         update: ({ req: { user } }) => user?.role === 'superadmin',
       },
     },
@@ -50,7 +51,10 @@ export const Users: CollectionConfig = {
       name: 'isBlocked',
       type: 'checkbox',
       defaultValue: false,
-      access: { update: ({ req: { user } }) => isAdmin(user as any) },
+      access: {
+        create: ({ req: { user } }) => isAdmin(user as any),
+        update: ({ req: { user } }) => isAdmin(user as any),
+      },
     },
     { name: 'lastSeenAt', type: 'date', admin: { readOnly: true } },
     {
