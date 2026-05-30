@@ -13,6 +13,7 @@ import { MagicLinkTokens } from './collections/MagicLinkTokens.ts';
 import { Organizations } from './collections/Organizations.ts';
 import { IntakeFacilities } from './collections/IntakeFacilities.ts';
 import { Animals } from './collections/Animals.ts';
+import { AdoptionInquiries } from './collections/AdoptionInquiries.ts';
 import { s3Storage } from '@payloadcms/storage-s3';
 import { resendAdapter } from '@payloadcms/email-resend';
 import { buildR2StorageConfig, type R2Env } from './lib/storage/r2-adapter.ts';
@@ -30,7 +31,7 @@ export default buildConfig({
     user: 'users',
     meta: { titleSuffix: ' — Pet Aggregator BY Admin' },
   },
-  collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals],
+  collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals, AdoptionInquiries],
   plugins: r2Plugins,
   email: process.env.RESEND_API_KEY
     ? resendAdapter({

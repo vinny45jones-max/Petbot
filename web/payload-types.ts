@@ -76,6 +76,7 @@ export interface Config {
     organizations: Organization;
     intakeFacilities: IntakeFacility;
     animals: Animal;
+    'adoption-inquiries': AdoptionInquiry;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -96,6 +97,7 @@ export interface Config {
     organizations: OrganizationsSelect<false> | OrganizationsSelect<true>;
     intakeFacilities: IntakeFacilitiesSelect<false> | IntakeFacilitiesSelect<true>;
     animals: AnimalsSelect<false> | AnimalsSelect<true>;
+    'adoption-inquiries': AdoptionInquiriesSelect<false> | AdoptionInquiriesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -490,6 +492,21 @@ export interface Animal {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "adoption-inquiries".
+ */
+export interface AdoptionInquiry {
+  id: number;
+  animal: number | Animal;
+  applicant: number | User;
+  message: string;
+  contactPhone?: string | null;
+  contactTelegram?: string | null;
+  status?: ('new' | 'contacted' | 'closed') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -547,6 +564,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'animals';
         value: number | Animal;
+      } | null)
+    | ({
+        relationTo: 'adoption-inquiries';
+        value: number | AdoptionInquiry;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -813,6 +834,20 @@ export interface AnimalsSelect<T extends boolean = true> {
   urgencyRank?: T;
   publishedAt?: T;
   adoptedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "adoption-inquiries_select".
+ */
+export interface AdoptionInquiriesSelect<T extends boolean = true> {
+  animal?: T;
+  applicant?: T;
+  message?: T;
+  contactPhone?: T;
+  contactTelegram?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }
