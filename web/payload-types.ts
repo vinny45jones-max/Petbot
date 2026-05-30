@@ -75,6 +75,7 @@ export interface Config {
     'magic-link-tokens': MagicLinkToken;
     organizations: Organization;
     intakeFacilities: IntakeFacility;
+    animals: Animal;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -94,6 +95,7 @@ export interface Config {
     'magic-link-tokens': MagicLinkTokensSelect<false> | MagicLinkTokensSelect<true>;
     organizations: OrganizationsSelect<false> | OrganizationsSelect<true>;
     intakeFacilities: IntakeFacilitiesSelect<false> | IntakeFacilitiesSelect<true>;
+    animals: AnimalsSelect<false> | AnimalsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -406,6 +408,88 @@ export interface IntakeFacility {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "animals".
+ */
+export interface Animal {
+  id: number;
+  /**
+   * Кличка (может быть пустой)
+   */
+  name?: string | null;
+  petNumber?: number | null;
+  slug?: string | null;
+  species: 'dog' | 'cat' | 'other';
+  sex?: ('male' | 'female' | 'unknown') | null;
+  ageYears?: number | null;
+  ageMonths?: number | null;
+  size?: ('small' | 'medium' | 'large') | null;
+  description?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  descriptionPlain?: string | null;
+  healthStatus?: ('healthy' | 'needs_treatment' | 'chronic_condition' | 'recovering' | 'unknown') | null;
+  healthNotes?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  isSterilized?: boolean | null;
+  isVaccinated?: boolean | null;
+  /**
+   * 15 цифр (опционально)
+   */
+  microchipId?: string | null;
+  city?: (number | null) | City;
+  ownerType: 'citizen' | 'organization';
+  ownerUser?: (number | null) | User;
+  organization?: (number | null) | Organization;
+  status: 'pending_review' | 'published' | 'adopted' | 'archived';
+  source?: ('web_form' | 'telegram_bot' | 'partner_feed' | 'admin') | null;
+  lostOrFound?: ('none' | 'lost' | 'found') | null;
+  /**
+   * Фото (в MVP), видео — фаза 2
+   */
+  media?: (number | Media)[] | null;
+  intakeFacility?: (number | null) | IntakeFacility;
+  /**
+   * Дата попадания в службу отлова
+   */
+  intakeDate?: string | null;
+  /**
+   * Дедлайн; авто из службы, можно override
+   */
+  legalDeadlineDate?: string | null;
+  urgencyLevel?: ('normal' | 'high' | 'critical') | null;
+  urgencyRank?: number | null;
+  publishedAt?: string | null;
+  adoptedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -459,6 +543,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'intakeFacilities';
         value: number | IntakeFacility;
+      } | null)
+    | ({
+        relationTo: 'animals';
+        value: number | Animal;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -687,6 +775,44 @@ export interface IntakeFacilitiesSelect<T extends boolean = true> {
   viberUrl?: T;
   isMunicipal?: T;
   isPublished?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "animals_select".
+ */
+export interface AnimalsSelect<T extends boolean = true> {
+  name?: T;
+  petNumber?: T;
+  slug?: T;
+  species?: T;
+  sex?: T;
+  ageYears?: T;
+  ageMonths?: T;
+  size?: T;
+  description?: T;
+  descriptionPlain?: T;
+  healthStatus?: T;
+  healthNotes?: T;
+  isSterilized?: T;
+  isVaccinated?: T;
+  microchipId?: T;
+  city?: T;
+  ownerType?: T;
+  ownerUser?: T;
+  organization?: T;
+  status?: T;
+  source?: T;
+  lostOrFound?: T;
+  media?: T;
+  intakeFacility?: T;
+  intakeDate?: T;
+  legalDeadlineDate?: T;
+  urgencyLevel?: T;
+  urgencyRank?: T;
+  publishedAt?: T;
+  adoptedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
