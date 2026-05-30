@@ -1,5 +1,6 @@
 import { slugifyRu } from './slug.ts';
 import { computeDeadline, computeUrgency, URGENCY_RANK } from './urgency.ts';
+import { extractPlainText } from './lexical-plain.ts';
 
 const SPECIES_FALLBACK: Record<string, string> = { dog: 'dog', cat: 'cat', other: 'animal' };
 
@@ -41,6 +42,8 @@ export function makeAnimalBeforeChangeHook(deps: AnimalHookDeps) {
     const level = computeUrgency(deadline, deps.now());
     data.urgencyLevel = level;
     data.urgencyRank = URGENCY_RANK[level];
+
+    data.descriptionPlain = extractPlainText(data.description);
     return data;
   };
 }

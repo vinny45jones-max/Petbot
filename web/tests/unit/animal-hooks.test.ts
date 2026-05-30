@@ -68,6 +68,17 @@ describe('makeAnimalBeforeChangeHook', () => {
     expect(data.urgencyLevel).toBe('normal');
     expect(data.urgencyRank).toBe(0);
   });
+
+  it('fills descriptionPlain from richText description', async () => {
+    const hook = makeAnimalBeforeChangeHook(deps());
+    const data = await hook({
+      operation: 'create',
+      data: { species: 'dog', description: { root: { children: [
+        { type: 'paragraph', children: [{ type: 'text', text: 'Добрый пёс' }] },
+      ] } } },
+    } as any);
+    expect(data.descriptionPlain).toBe('Добрый пёс');
+  });
 });
 
 describe('makeAnimalLifecycleStamps', () => {

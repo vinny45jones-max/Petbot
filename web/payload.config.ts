@@ -49,8 +49,18 @@ export default buildConfig({
   // на каждом boot — работает в dev(push)/prod(next start)/CI. Миграция-fallback:
   // migrations/*_pet_number_sequence (если позже подключить payload migrate на деплое).
   onInit: async (payload) => {
-    await (payload.db as any).drizzle.execute(
-      sql`CREATE SEQUENCE IF NOT EXISTS pet_number_seq START WITH 1 INCREMENT BY 1`,
-    );
+    const db = (payload.db as any).drizzle;
+    await db.execute(sql`CREATE SEQUENCE IF NOT EXISTS pet_number_seq START WITH 1 INCREMENT BY 1`);
+    // FTS (Task 7): generated tsvector (name=A, description_plain=B) + GIN.
+    // raw SQL — push такие объекты не создаёт; IF NOT EXISTS делает идемпотентным.
+    await db.execute(sql`
+      ALTER TABLE animals
+      ADD COLUMN IF NOT EXISTS search_vector tsvector
+      GENERATED ALWAYS AS (
+        setweight(to_tsvector('russian', coalesce(name, '')), 'A') ||
+        setweight(to_tsvector('russian', coalesce(description_plain, '')), 'B')
+      ) STORED
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS animals_search_idx ON animals USING GIN (search_vector)`);
   },
 });
