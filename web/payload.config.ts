@@ -1,5 +1,6 @@
 import { buildConfig } from 'payload';
 import { postgresAdapter } from '@payloadcms/db-postgres';
+import { sql } from 'drizzle-orm';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -41,4 +42,12 @@ export default buildConfig({
   db: postgresAdapter({
     pool: { connectionString: process.env.DATABASE_URL || '' },
   }),
+  // raw-SQL объекты (sequence, FTS) push-схемой не создаются. Идемпотентный bootstrap
+  // на каждом boot — работает в dev(push)/prod(next start)/CI. Миграция-fallback:
+  // migrations/*_pet_number_sequence (если позже подключить payload migrate на деплое).
+  onInit: async (payload) => {
+    await (payload.db as any).drizzle.execute(
+      sql`CREATE SEQUENCE IF NOT EXISTS pet_number_seq START WITH 1 INCREMENT BY 1`,
+    );
+  },
 });
