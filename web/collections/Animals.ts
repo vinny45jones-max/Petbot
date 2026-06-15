@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload';
-import { isAdmin, canManageOrganization } from '../lib/auth/rbac.ts';
+import { isAdmin } from '../lib/auth/rbac.ts';
+import { userAdministersOrg } from '../lib/auth/org-access.ts';
 import { nextPetNumber } from '../lib/pet-number.ts';
 import { makeAnimalBeforeChangeHook, makeAnimalLifecycleStamps } from '../lib/animal-hooks.ts';
 
@@ -16,11 +17,11 @@ export const Animals: CollectionConfig = {
       return { status: { equals: 'published' } };
     },
     create: ({ req: { user } }) => !!user,
-    update: ({ req: { user }, data }) => {
+    update: async ({ req: { user, payload }, data }) => {
       if (isAdmin(user as any)) return true;
       if (!user) return false;
-      const orgId = data?.organization ? String(data.organization) : null;
-      if (orgId && canManageOrganization(user as any, orgId)) return true;
+      const orgId = (data?.organization ?? null) as string | number | null;
+      if (orgId != null && (await userAdministersOrg(payload, user as any, orgId))) return true;
       return { ownerUser: { equals: user.id } };
     },
     delete: ({ req: { user } }) => isAdmin(user as any),

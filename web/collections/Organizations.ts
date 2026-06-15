@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload';
-import { isAdmin, canManageOrganization } from '../lib/auth/rbac.ts';
+import { isAdmin } from '../lib/auth/rbac.ts';
+import { userAdministersOrg } from '../lib/auth/org-access.ts';
 import { slugifyRu, uniqueSlug } from '../lib/slug.ts';
 
 export const Organizations: CollectionConfig = {
@@ -11,8 +12,8 @@ export const Organizations: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req: { user } }) => isAdmin(user as any),
-    update: ({ req: { user }, id }) =>
-      isAdmin(user as any) || (id ? canManageOrganization(user as any, String(id)) : false),
+    update: async ({ req: { user, payload }, id }) =>
+      isAdmin(user as any) || (id != null ? await userAdministersOrg(payload, user as any, id) : false),
     delete: ({ req: { user } }) => isAdmin(user as any),
   },
   fields: [
