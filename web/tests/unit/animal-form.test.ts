@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { validateAnimalDraft } from '@/lib/animal-form';
+import { validateAnimalDraft, type AnimalDraft } from '@/lib/animal-form';
 
-const valid = {
+const valid: AnimalDraft = {
   species: 'dog', sex: 'male', size: 'medium',
   city: 'city-id-1', description: 'Хороший пёс ищет дом, дружелюбный.',
   contactPhone: '+375291112233', photoCount: 1,
