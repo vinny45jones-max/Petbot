@@ -7,12 +7,15 @@ import { validateAnimalDraft, type AnimalDraft } from '@/lib/animal-form';
 import { createAnimal } from '@/actions/animal';
 
 interface CityOption { id: string; nameRu: string }
+interface FacilityOption { id: string; name: string }
 
-export function AnimalWizard({ cities, organizationId, successRedirect = '/me/animals' }: { cities: CityOption[]; organizationId?: string; successRedirect?: string }) {
+export function AnimalWizard({ cities, organizationId, successRedirect = '/me/animals', facilities = [] }: { cities: CityOption[]; organizationId?: string; successRedirect?: string; facilities?: FacilityOption[] }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
   const [draft, setDraft] = useState<AnimalDraft>({ sex: 'unknown' });
+  const [intakeFacilityId, setIntakeFacilityId] = useState('');
+  const [intakeDate, setIntakeDate] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,7 +30,7 @@ export function AnimalWizard({ cities, organizationId, successRedirect = '/me/an
     const v = validateAnimalDraft(full);
     if (!v.ok) { setErrors(v.errors); return; }
     setSubmitting(true);
-    const res = await createAnimal({ ...draft, mediaIds: photos.map((p) => p.id), organizationId });
+    const res = await createAnimal({ ...draft, mediaIds: photos.map((p) => p.id), organizationId, intakeFacilityId: intakeFacilityId || undefined, intakeDate: intakeDate || undefined });
     setSubmitting(false);
     if (res.ok) router.push(`${successRedirect}?created=1`);
     else setErrors(res.errors);
@@ -49,6 +52,20 @@ export function AnimalWizard({ cities, organizationId, successRedirect = '/me/an
         <section>
           <h2 className="mb-3 text-lg font-semibold">{step === 2 ? 'О животном' : 'Описание и контакт'}</h2>
           <AnimalFormFields draft={draft} setDraft={setDraft} cities={cities} errors={errors} />
+          {step === 2 && facilities.length > 0 && (
+            <div className="mt-4 rounded-xl border-l-4 border-red-300 bg-red-50 p-3">
+              <label className="block font-medium">Служба отлова (если животное оттуда)</label>
+              <select value={intakeFacilityId} onChange={(e) => setIntakeFacilityId(e.target.value)} className="w-full rounded-lg border px-2 py-1">
+                <option value="">Не из службы отлова</option>
+                {facilities.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              {intakeFacilityId && (
+                <label className="mt-2 block">Дата попадания
+                  <input type="date" value={intakeDate} onChange={(e) => setIntakeDate(e.target.value)} className="ml-2 rounded-lg border px-2 py-1" />
+                </label>
+              )}
+            </div>
+          )}
         </section>
       )}
 
