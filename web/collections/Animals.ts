@@ -136,5 +136,38 @@ export const Animals: CollectionConfig = {
       // publishedAt/adoptedAt при ЛЮБОЙ операции (см. makeAnimalLifecycleStamps)
       makeAnimalLifecycleStamps(),
     ],
+    afterChange: [
+      async ({ doc, previousDoc, req }) => {
+        const becamePublished = doc.status === 'published' && previousDoc?.status !== 'published';
+        // отклонение модератором: pending_review -> archived (модель «архив = reject» в MVP)
+        const becameRejected = doc.status === 'archived' && previousDoc?.status === 'pending_review';
+        if (!becamePublished && !becameRejected) return;
+
+        const { formatAnimalTitle } = await import('@/lib/format');
+        // email владельцу: citizen -> ownerUser.email; org -> org.email
+        let ownerEmail: string | null | undefined = null;
+        if (doc.ownerUser) {
+          const owner = await req.payload.findByID({ collection: 'users', id: typeof doc.ownerUser === 'object' ? doc.ownerUser.id : doc.ownerUser, depth: 0 }).catch(() => null);
+          ownerEmail = (owner as any)?.email ?? null;
+        } else if (doc.organization) {
+          const org = await req.payload.findByID({ collection: 'organizations', id: typeof doc.organization === 'object' ? doc.organization.id : doc.organization, depth: 0 }).catch(() => null);
+          ownerEmail = (org as any)?.email ?? null;
+        }
+        const title = formatAnimalTitle(doc);
+
+        if (becamePublished) {
+          const { notifyAnimalPublished } = await import('@/lib/notify/dispatch');
+          const { animalUrl } = await import('@/lib/animal-url');
+          const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+          // нужен populated city для URL; берём slug если есть, иначе by
+          const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city: typeof doc.city === 'object' ? doc.city : null })}`;
+          await notifyAnimalPublished(ownerEmail, title, url);
+        } else if (becameRejected) {
+          // §16.7 «Объявление отклонено»: причину модератор может положить в moderationNote (если поле есть)
+          const { notifyAnimalRejected } = await import('@/lib/notify/dispatch');
+          await notifyAnimalRejected(ownerEmail, title, (doc as any).moderationNote ?? null);
+        }
+      },
+    ],
   },
 };
