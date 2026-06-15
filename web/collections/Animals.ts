@@ -143,29 +143,36 @@ export const Animals: CollectionConfig = {
         const becameRejected = doc.status === 'archived' && previousDoc?.status === 'pending_review';
         if (!becamePublished && !becameRejected) return;
 
-        const { formatAnimalTitle } = await import('@/lib/format');
-        // email владельцу: citizen -> ownerUser.email; org -> org.email
-        let ownerEmail: string | null | undefined = null;
-        if (doc.ownerUser) {
-          const owner = await req.payload.findByID({ collection: 'users', id: typeof doc.ownerUser === 'object' ? doc.ownerUser.id : doc.ownerUser, depth: 0 }).catch(() => null);
-          ownerEmail = (owner as any)?.email ?? null;
-        } else if (doc.organization) {
-          const org = await req.payload.findByID({ collection: 'organizations', id: typeof doc.organization === 'object' ? doc.organization.id : doc.organization, depth: 0 }).catch(() => null);
-          ownerEmail = (org as any)?.email ?? null;
-        }
-        const title = formatAnimalTitle(doc);
+        // Уведомления best-effort: не должны ронять запись животного (в т.ч. seed),
+        // их модульный граф (@/-алиасы в dispatch/templates) не резолвится в
+        // standalone-node — ловим и логируем, не пробрасываем.
+        try {
+          const { formatAnimalTitle } = await import('../lib/format.ts');
+          // email владельцу: citizen -> ownerUser.email; org -> org.email
+          let ownerEmail: string | null | undefined = null;
+          if (doc.ownerUser) {
+            const owner = await req.payload.findByID({ collection: 'users', id: typeof doc.ownerUser === 'object' ? doc.ownerUser.id : doc.ownerUser, depth: 0 }).catch(() => null);
+            ownerEmail = (owner as any)?.email ?? null;
+          } else if (doc.organization) {
+            const org = await req.payload.findByID({ collection: 'organizations', id: typeof doc.organization === 'object' ? doc.organization.id : doc.organization, depth: 0 }).catch(() => null);
+            ownerEmail = (org as any)?.email ?? null;
+          }
+          const title = formatAnimalTitle(doc);
 
-        if (becamePublished) {
-          const { notifyAnimalPublished } = await import('@/lib/notify/dispatch');
-          const { animalUrl } = await import('@/lib/animal-url');
-          const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-          // нужен populated city для URL; берём slug если есть, иначе by
-          const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city: typeof doc.city === 'object' ? doc.city : null })}`;
-          await notifyAnimalPublished(ownerEmail, title, url);
-        } else if (becameRejected) {
-          // §16.7 «Объявление отклонено»: причину модератор может положить в moderationNote (если поле есть)
-          const { notifyAnimalRejected } = await import('@/lib/notify/dispatch');
-          await notifyAnimalRejected(ownerEmail, title, (doc as any).moderationNote ?? null);
+          if (becamePublished) {
+            const { notifyAnimalPublished } = await import('../lib/notify/dispatch.ts');
+            const { animalUrl } = await import('../lib/animal-url.ts');
+            const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+            // нужен populated city для URL; берём slug если есть, иначе by
+            const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city: typeof doc.city === 'object' ? doc.city : null })}`;
+            await notifyAnimalPublished(ownerEmail, title, url);
+          } else if (becameRejected) {
+            // §16.7 «Объявление отклонено»: причину модератор может положить в moderationNote (если поле есть)
+            const { notifyAnimalRejected } = await import('../lib/notify/dispatch.ts');
+            await notifyAnimalRejected(ownerEmail, title, (doc as any).moderationNote ?? null);
+          }
+        } catch (e) {
+          console.error('[animals.afterChange] notify failed (non-fatal)', e);
         }
       },
     ],
