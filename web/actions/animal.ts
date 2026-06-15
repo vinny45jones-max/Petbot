@@ -79,10 +79,10 @@ export async function createAnimal(input: CreateAnimalInput): Promise<ActionResu
     data: {
       species: input.species, sex: input.sex ?? 'unknown', size: input.size,
       name: input.name, ageYears: input.ageYears, ageMonths: input.ageMonths,
-      city: input.city, healthStatus: input.healthStatus ?? 'unknown',
+      city: input.city ? Number(input.city) : undefined, healthStatus: input.healthStatus ?? 'unknown',
       description: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: input.description ?? '' }] }] } },
       microchipId: input.microchipId || undefined,
-      media: input.mediaIds,
+      media: input.mediaIds.map((m) => Number(m)),
       status: 'pending_review',
       source: 'web_form',
       ...ownership,

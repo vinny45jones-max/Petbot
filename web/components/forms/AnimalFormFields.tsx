@@ -61,8 +61,8 @@ export function AnimalFormFields({ draft, setDraft, cities, errors }: {
       </div>
 
       <div>
-        <label className="block font-medium">Описание *</label>
-        <textarea value={draft.description ?? ''} onChange={(e) => upd({ description: e.target.value })} rows={4} className="w-full rounded-lg border px-2 py-1" />
+        <label htmlFor="animal-description" className="block font-medium">Описание *</label>
+        <textarea id="animal-description" value={draft.description ?? ''} onChange={(e) => upd({ description: e.target.value })} rows={4} className="w-full rounded-lg border px-2 py-1" />
         {errors.description && <p className="text-sm text-red-600">{errors.description}</p>}
       </div>
 
