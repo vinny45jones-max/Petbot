@@ -99,8 +99,44 @@ async function main() {
   await seedFacilities(payload);
   await seedOrgs(payload);
   await seedAnimals(payload);
+  await seedTestUser(payload);
+  await seedTestOrgAdmin(payload);
   console.log('Seeded facilities, orgs, animals.');
   process.exit(0);
+}
+
+async function seedTestUser(payload: any) {
+  if (process.env.NODE_ENV === 'production') return;
+  const email = 'citizen@test.local';
+  const exists = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true });
+  if (exists.docs.length) return;
+  await payload.create({
+    collection: 'users',
+    data: { email, password: 'Test12345!', role: 'citizen', firstName: 'Тест', ageConfirmed: true, consentPersonalData: true, _verified: true } as any,
+    overrideAccess: true,
+  });
+}
+
+// org_admin + организация с детерминированным slug — для e2e проверки guard'а кабинета.
+async function seedTestOrgAdmin(payload: any) {
+  if (process.env.NODE_ENV === 'production') return;
+  const email = 'orgadmin@test.local';
+  let user = (await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true })).docs[0];
+  if (!user) {
+    user = await payload.create({
+      collection: 'users',
+      data: { email, password: 'Test12345!', role: 'org_admin', firstName: 'Орг', ageConfirmed: true, consentPersonalData: true, _verified: true } as any,
+      overrideAccess: true,
+    });
+  }
+  const existsOrg = await payload.find({ collection: 'organizations', where: { slug: { equals: 'test-shelter' } }, limit: 1, overrideAccess: true });
+  if (!existsOrg.docs.length) {
+    await payload.create({
+      collection: 'organizations',
+      data: { name: 'Тест-приют', slug: 'test-shelter', isVerified: true, isPublished: true, admins: [user.id] } as any,
+      overrideAccess: true,
+    });
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
