@@ -11,7 +11,11 @@ from config import OPENAI_API_KEY
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY, max_retries=3)
 
-IMAGE_MODEL = "gpt-image-1"
+# low / medium / high — влияет на детализацию выхода и цену
+IMAGE_QUALITY = "medium"
+
+# Первая удачная модель кэшируется, чтобы не биться в недоступную на каждом кадре
+_working_model: str | None = None
 
 BACKGROUNDS = [
     "a cozy Scandinavian living room with light wood, a soft neutral sofa, and clean natural daylight",
@@ -24,16 +28,16 @@ BACKGROUNDS = [
 
 SHOT_VARIANTS = [
     {
+        "composition": "a close portrait with the head and chest filling most of the frame",
+        "distance": "The camera is close. The pet should occupy about 55 percent of the frame and the face must stay large and sharp.",
+    },
+    {
         "composition": "a clean medium portrait with the full head and upper body visible",
-        "distance": "The camera is fairly close, but not extreme. The pet should occupy about 40 percent of the frame.",
+        "distance": "The camera is fairly close, but not extreme. The pet should occupy about 45 percent of the frame.",
     },
     {
         "composition": "a full-body shot with the pet naturally sitting or standing in the room",
-        "distance": "The camera is a bit farther back. The full body should be visible and the pet should occupy about 28 percent of the frame.",
-    },
-    {
-        "composition": "a wider environmental shot from farther away with the pet clearly placed in the interior",
-        "distance": "Show much more of the room around the pet. The pet should occupy only about 18 to 22 percent of the frame.",
+        "distance": "The camera is a bit farther back. The full body should be visible and the pet should occupy about 35 percent of the frame.",
     },
 ]
 
@@ -65,7 +69,7 @@ CHARACTER_HINTS = {
 }
 
 
-def _normalize_image(photo_bytes: bytes, max_size: int = 768) -> Image.Image:
+def _normalize_image(photo_bytes: bytes, max_size: int = 1024) -> Image.Image:
     with Image.open(BytesIO(photo_bytes)) as image:
         normalized = ImageOps.exif_transpose(image).convert("RGB")
         if max(normalized.size) > max_size:
@@ -79,30 +83,21 @@ def _image_to_png_bytes(image: Image.Image) -> bytes:
     return output.getvalue()
 
 
-def _make_focus_crop(image: Image.Image) -> Image.Image:
+def _pick_output_size(image: Image.Image) -> str:
+    """Подбирает ближайший поддерживаемый размер, чтобы не резать кадр в квадрат."""
     width, height = image.size
-    crop_size = int(min(width, height) * 0.82)
-    left = max((width - crop_size) // 2, 0)
-    top = max((height - crop_size) // 2 - int(crop_size * 0.08), 0)
-
-    if left + crop_size > width:
-        left = width - crop_size
-    if top + crop_size > height:
-        top = height - crop_size
-
-    cropped = image.crop((left, top, left + crop_size, top + crop_size))
-    return cropped.resize((512, 512), Image.Resampling.LANCZOS)
+    ratio = width / height
+    if ratio >= 1.2:
+        return "1536x1024"
+    if ratio <= 0.83:
+        return "1024x1536"
+    return "1024x1024"
 
 
-def _build_reference_images(photo_bytes: bytes) -> list[tuple[str, bytes, str]]:
-    normalized = _normalize_image(photo_bytes, max_size=768)
-    full_png = _image_to_png_bytes(normalized)
-    focus_png = _image_to_png_bytes(_make_focus_crop(normalized))
-
-    return [
-        ("reference_full.png", full_png, "image/png"),
-        ("reference_focus.png", focus_png, "image/png"),
-    ]
+def _build_reference(photo_bytes: bytes) -> tuple[tuple[str, bytes, str], str]:
+    normalized = _normalize_image(photo_bytes, max_size=1536)
+    reference = ("reference_full.png", _image_to_png_bytes(normalized), "image/png")
+    return reference, _pick_output_size(normalized)
 
 
 def _build_prompt(
@@ -117,8 +112,9 @@ def _build_prompt(
     character = CHARACTER_HINTS.get(animal_data.get("character", ""), "")
 
     return (
-        "Use the uploaded reference image or images as the exact same real pet identity. "
+        "Use the uploaded reference image as the exact same real pet identity. "
         "Preserve the exact face, muzzle, nose shape, eyes, ear shape, fur pattern, markings, coat color, proportions, and overall identity. "
+        "Copy the face pixel by pixel as closely as possible: this must read as the same individual animal, not a lookalike. "
         "Do not turn it into a different animal, different breed, or different individual. "
         f"The pet is one {size} {animal} with a {character} vibe. "
         f"Place the pet in {background}. "
@@ -133,36 +129,66 @@ def _build_prompt(
     )
 
 
-async def _edit_single_image(
-    reference_images: list[tuple[str, bytes, str]],
-    prompt: str,
-) -> bytes:
-    variants = [
-        {"image": reference_images, "input_fidelity": "high", "quality": "medium"},
-        {"image": reference_images[0], "input_fidelity": "high", "quality": "medium"},
-        {"image": reference_images[0], "input_fidelity": "high", "quality": "low"},
-        {"image": reference_images[0], "input_fidelity": "low", "quality": "medium"},
+def _build_variants(output_size: str) -> list[dict]:
+    """Цепочка попыток от лучшей модели к запасным.
+
+    gpt-image-2 сам обрабатывает вход в high fidelity, поэтому input_fidelity
+    для него не передаётся — с этим параметром запрос падает.
+    На старых моделях input_fidelity всегда high: low подменяет животное.
+    """
+    return [
+        {"model": "gpt-image-2", "quality": IMAGE_QUALITY, "size": output_size},
+        {"model": "gpt-image-2", "quality": IMAGE_QUALITY, "size": "1024x1024"},
+        {
+            "model": "gpt-image-1.5",
+            "quality": IMAGE_QUALITY,
+            "size": output_size,
+            "input_fidelity": "high",
+        },
+        {
+            "model": "gpt-image-1",
+            "quality": IMAGE_QUALITY,
+            "size": output_size,
+            "input_fidelity": "high",
+        },
     ]
+
+
+async def _edit_single_image(
+    reference: tuple[str, bytes, str],
+    prompt: str,
+    output_size: str,
+) -> bytes:
+    global _working_model
+
+    variants = _build_variants(output_size)
+    if _working_model is not None:
+        variants = [v for v in variants if v["model"] == _working_model] or variants
 
     last_error: Exception | None = None
     for index, variant in enumerate(variants, 1):
+        params = {
+            "model": variant["model"],
+            "image": reference,
+            "prompt": prompt,
+            "quality": variant["quality"],
+            "output_format": "png",
+            "size": variant["size"],
+            "timeout": 240,
+        }
+        if "input_fidelity" in variant:
+            params["input_fidelity"] = variant["input_fidelity"]
+
         try:
-            response = await client.images.edit(
-                model=IMAGE_MODEL,
-                image=variant["image"],
-                prompt=prompt,
-                input_fidelity=variant["input_fidelity"],
-                quality=variant["quality"],
-                output_format="png",
-                size="1024x1024",
-                timeout=120,
-            )
+            response = await client.images.edit(**params)
+            _working_model = variant["model"]
             return base64.b64decode(response.data[0].b64_json)
         except APIError as exc:
             last_error = exc
             logging.warning(
-                "Reference edit attempt %s failed, retrying with a lighter request: %s",
+                "Edit attempt %s (%s) failed, falling back: %s",
                 index,
+                variant["model"],
                 exc,
             )
             await asyncio.sleep(1.5)
@@ -177,7 +203,7 @@ async def generate_images(
 ) -> list[bytes]:
     """Generate faithful interior variations that keep the same pet identity."""
     total = max(1, min(count, 4))
-    reference_images = _build_reference_images(photo_bytes)
+    reference, output_size = _build_reference(photo_bytes)
     shot_variants = SHOT_VARIANTS[:]
     random.shuffle(shot_variants)
 
@@ -197,7 +223,7 @@ async def generate_images(
         )
 
         try:
-            results.append(await _edit_single_image(reference_images, prompt))
+            results.append(await _edit_single_image(reference, prompt, output_size))
         except APIError as exc:
             logging.warning("Skipping one image after repeated API failures: %s", exc)
 
