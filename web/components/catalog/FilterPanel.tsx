@@ -1,4 +1,5 @@
 'use client';
+import { useOptimistic, useTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 interface CityOption { slug: string; nameRu: string }
@@ -10,13 +11,21 @@ const SEX = [{ v: 'male', l: 'Мальчик' }, { v: 'female', l: 'Девочк
 export function FilterPanel({ cities }: { cities: CityOption[] }) {
   const router = useRouter();
   const pathname = usePathname();
-  const sp = useSearchParams();
+  const searchParams = useSearchParams();
+  // Контролы читают URL, а router.push асинхронный: без оптимистичного состояния
+  // галочка откатывается до конца навигации (и быстрые клики теряют друг друга).
+  const [, startTransition] = useTransition();
+  const [query, setQuery] = useOptimistic(searchParams.toString());
+  const sp = new URLSearchParams(query);
 
   function update(mutate: (next: URLSearchParams) => void) {
-    const next = new URLSearchParams(sp.toString());
+    const next = new URLSearchParams(query);
     mutate(next);
     next.delete('page');
-    router.push(`${pathname}?${next.toString()}`);
+    startTransition(() => {
+      setQuery(next.toString());
+      router.push(`${pathname}?${next.toString()}`);
+    });
   }
 
   const setSingle = (key: string, value: string) =>
