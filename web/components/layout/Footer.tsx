@@ -8,12 +8,17 @@ export function Footer() {
           <h2 className="font-semibold mb-2">О проекте</h2>
           <ul className="space-y-1">
             <li><Link href="/about">О нас</Link></li>
+            <li><Link href="/how-it-works">Как это работает</Link></li>
+            <li><Link href="/safety">Безопасность</Link></li>
+            <li><Link href="/success-stories">Истории успеха</Link></li>
+            <li><Link href="/blog">Блог</Link></li>
             <li><Link href="/contacts">Контакты</Link></li>
           </ul>
         </div>
         <div>
           <h2 className="font-semibold mb-2">Юридическое</h2>
           <ul className="space-y-1">
+            <li><Link href="/legal">Юр.раздел</Link></li>
             <li><Link href="/privacy">Политика конфиденциальности</Link></li>
             <li><Link href="/terms">Условия использования</Link></li>
             <li><Link href="/cookie-policy">Cookie</Link></li>
@@ -23,6 +28,9 @@ export function Footer() {
           <h2 className="font-semibold mb-2">Помощь</h2>
           <ul className="space-y-1">
             <li><Link href="/faq">FAQ</Link></li>
+            <li><Link href="/help-center">Справка</Link></li>
+            <li><Link href="/glossary">Глоссарий</Link></li>
+            <li><Link href="/lost-and-found">Потеряны и найдены</Link></li>
             <li><Link href="/report-cruelty">Сообщить о жестокости</Link></li>
           </ul>
         </div>
