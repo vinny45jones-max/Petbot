@@ -15,6 +15,7 @@
     "generate:types": "payload generate:types --disable-transpile",
     "generate:importmap": "payload generate:importmap --disable-transpile",
     "seed": "node scripts/seed.ts",
+    "seed:content": "node scripts/seed-content.ts",
     "migrate": "payload migrate --disable-transpile",
     "migrate:create": "payload migrate:create --disable-transpile"
   },
