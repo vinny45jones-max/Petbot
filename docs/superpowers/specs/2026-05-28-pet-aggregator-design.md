@@ -2,7 +2,7 @@
 
 **Дата:** 2026-05-28
 **Автор:** brainstorming-сессия (solo dev + Claude Code)
-**Статус:** Draft → ожидает ревью пользователя
+**Статус:** стек утверждён владельцем 07.10.2026 (см. §3 «Решение по стеку»); остальная спека — рабочая версия, по ней выполнены Plans 1–3
 **Связанные документы:** [`docs/research/2026-05-28-pet-aggregator-research.md`](../../research/2026-05-28-pet-aggregator-research.md)
 
 ---
@@ -49,6 +49,20 @@
 ---
 
 ## 3. Стек
+
+### Решение по стеку (утверждено 07.10.2026)
+
+Актуальные версии: **Next.js 16.3 + Payload 3.90 + React 19.2 + Postgres 16 + Railway**, Node 22+. Сверено с другими проектами владельца (linkedin-ts, eXhibit, Hozspor: React+Vite + Nest/Fastify + Prisma).
+
+| Слой | Выбор | Почему не как в других проектах |
+|---|---|---|
+| Фронт | Next.js (SSR/SSG) | агрегатор живёт поиском: каталог должен индексироваться; Vite-SPA потребовал бы отдельный пререндер |
+| Бэк + админка | Payload 3 внутри Next | готовая админка/роли для модераторов и приютов; своя админка = месяцы кода |
+| Схема БД | Payload migrations, `payload migrate` в Railway preDeploy | тот же принцип, что `prisma migrate deploy` в других проектах; push — только локально |
+| Здоровье | `/api/health/ready` с проверкой БД | как `/health/ready` в linkedin-ts/eXhibit |
+
+Цена выбора: грабли Payload (`docs/solutions/payload/`) и частые breaking/security-релизы Next — обновлять в пределах Active LTS.
+
 
 ### Frontend
 
