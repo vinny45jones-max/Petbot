@@ -27,6 +27,20 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: 'npm', cache-dependency-path: 'web/package-lock.json' }
       - run: cd web && npm ci
+      # Прод получает схему только через миграции (Railway preDeploy) — проверяем, что они применяются
+      # на пустой БД и что коллекции не изменены без новой миграции
+      - name: Migrations apply + no schema drift
+        run: |
+          PGPASSWORD=pet psql -h localhost -U pet -d pet_aggregator_test -c "CREATE DATABASE pet_migrate_check;"
+          cd web
+          NODE_ENV=production npm run migrate
+          npm run migrate:create -- drift-check --skip-empty
+          if [ -n "$(git status --porcelain migrations)" ]; then
+            echo "::error::Коллекции изменены без миграции — запусти npm run migrate:create"; git status --porcelain migrations; exit 1
+          fi
+        env:
+          DATABASE_URL: postgresql://pet:pet@localhost:5432/pet_migrate_check
+          PAYLOAD_SECRET: ci-test-secret-32-characters-aaaa
       - run: cd web && npm run typecheck
       - run: cd web && npm run lint
       - run: cd web && npm test
