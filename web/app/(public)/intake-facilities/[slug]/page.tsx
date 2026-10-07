@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPayload } from 'payload';
 import config from '@/payload.config';
@@ -29,7 +30,7 @@ export default async function IntakeFacilityPage({ params }: { params: Promise<{
       </div>
       <div className="mt-4 rounded-xl border-l-4 border-amber-400 bg-amber-50 p-4 text-sm">
         Срок содержания по закону: <strong>{facility.legalHoldDays} дней</strong>. Подробнее о правах — в разделе{' '}
-        <a href="/legal/municipal-intake-rights" className="text-blue-600 underline">«Если животное попало в службу отлова»</a>.
+        <Link href="/legal/municipal-intake-rights" className="text-blue-600 underline">«Если животное попало в службу отлова»</Link>.
       </div>
       <h2 className="mb-4 mt-8 text-xl font-semibold">Животные в этой службе</h2>
       <AnimalGrid animals={animals.docs as any} />

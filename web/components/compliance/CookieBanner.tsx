@@ -1,17 +1,23 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 
+const KEY = 'cookie-consent';
+
+function subscribe(cb: () => void) {
+  window.addEventListener('storage', cb);
+  return () => window.removeEventListener('storage', cb);
+}
+
 export function CookieBanner() {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    if (!localStorage.getItem('cookie-consent')) setShow(true);
-  }, []);
+  // На сервере 'ssr' — баннер скрыт до гидратации
+  const consent = useSyncExternalStore(subscribe, () => localStorage.getItem(KEY), () => 'ssr');
+  const [accepted, setAccepted] = useState(false);
   function accept() {
-    localStorage.setItem('cookie-consent', 'accepted');
-    setShow(false);
+    localStorage.setItem(KEY, 'accepted');
+    setAccepted(true);
   }
-  if (!show) return null;
+  if (accepted || consent !== null) return null;
   return (
     <div className="fixed bottom-0 inset-x-0 bg-card border-t p-4 z-50" role="dialog" aria-label="Cookie banner">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-3 items-start md:items-center">
