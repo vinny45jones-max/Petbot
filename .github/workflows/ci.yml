@@ -50,6 +50,8 @@ jobs:
       - run: cd web && npx playwright install --with-deps chromium
       # e2e опираются на демо-каталог (seed Plan 2) и тестовых пользователей; даты urgent считаются от дня запуска
       - run: cd web && npm run seed
+      # юр.статья §17.8, FAQ, глоссарий (Plan 4) — на них опираются e2e legal/static-pages
+      - run: cd web && npm run seed:content
         env:
           DATABASE_URL: postgresql://pet:pet@localhost:5432/pet_aggregator_test
           PAYLOAD_SECRET: ci-test-secret-32-characters-aaaa
