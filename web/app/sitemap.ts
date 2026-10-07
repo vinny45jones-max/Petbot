@@ -21,7 +21,9 @@ export async function generateSitemaps() {
   });
 }
 
-export default async function sitemap({ id }: { id: string }): Promise<MetadataRoute.Sitemap> {
+// Next 16: id приходит Promise
+export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
+  const id = await props.id;
   const payload = await getPayload({ config });
 
   if (id === 'static') {
