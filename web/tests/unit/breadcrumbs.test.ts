@@ -5,7 +5,8 @@ describe('buildBreadcrumbs', () => {
   it('always starts with home', () => {
     const c = buildBreadcrumbs([{ label: 'Блог', href: '/blog' }]);
     expect(c[0]).toEqual({ label: 'Главная', href: '/' });
-    expect(c[1]).toEqual({ label: 'Блог', href: '/blog' });
+    // единственная крошка — текущая страница, без ссылки
+    expect(c[1]).toEqual({ label: 'Блог' });
   });
   it('last item has no href (current page)', () => {
     const c = buildBreadcrumbs([{ label: 'Блог', href: '/blog' }, { label: 'Пост', href: '/blog/x' }]);
