@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { animalUrl } from '@/lib/animal-url';
 import { formatAge, formatAnimalTitle } from '@/lib/format';
 import { UrgencyBadge } from './UrgencyBadge';
+import { AnimalBadges } from './AnimalBadges';
 import type { Animal } from '@/payload-types';
 
 export function AnimalCard({ animal }: { animal: Animal }) {
@@ -10,7 +11,6 @@ export function AnimalCard({ animal }: { animal: Animal }) {
   const img = firstMedia && typeof firstMedia === 'object' ? firstMedia : null;
   const cardSrc = (img as any)?.sizes?.card?.url ?? (img as any)?.url ?? null;
   const cityName = animal.city && typeof animal.city === 'object' ? (animal.city as any).nameRu : '';
-  const isShelter = animal.ownerType === 'organization';
 
   return (
     <Link href={animalUrl(animal as any)} className="group block overflow-hidden rounded-2xl border border-gray-200 transition hover:shadow-lg">
@@ -22,7 +22,8 @@ export function AnimalCard({ animal }: { animal: Animal }) {
         )}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
           <UrgencyBadge deadline={animal.legalDeadlineDate as any} />
-          {isShelter && <span className="rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white">Приют</span>}
+          {/* Срочность рисует UrgencyBadge по живому дедлайну; urgencyLevel в БД пересчитывается раз в сутки */}
+          <AnimalBadges animal={{ ...animal, urgencyLevel: null }} />
         </div>
       </div>
       <div className="p-3">

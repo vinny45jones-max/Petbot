@@ -4,6 +4,7 @@ import * as migration_20261007_190812_cruelty_partner_apps from './20261007_1908
 import * as migration_20261007_191026_blog_posts from './20261007_191026_blog_posts';
 import * as migration_20261007_191311_legal_articles from './20261007_191311_legal_articles';
 import * as migration_20261007_191549_help_glossary from './20261007_191549_help_glossary';
+import * as migration_20261007_192222_animals_special_status from './20261007_192222_animals_special_status';
 
 export const migrations = [
   {
@@ -34,6 +35,11 @@ export const migrations = [
   {
     up: migration_20261007_191549_help_glossary.up,
     down: migration_20261007_191549_help_glossary.down,
-    name: '20261007_191549_help_glossary'
+    name: '20261007_191549_help_glossary',
+  },
+  {
+    up: migration_20261007_192222_animals_special_status.up,
+    down: migration_20261007_192222_animals_special_status.down,
+    name: '20261007_192222_animals_special_status'
   },
 ];

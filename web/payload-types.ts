@@ -488,6 +488,10 @@ export interface Animal {
   source?: ('web_form' | 'telegram_bot' | 'partner_feed' | 'admin') | null;
   lostOrFound?: ('none' | 'lost' | 'found') | null;
   /**
+   * Доп.метки для карточки
+   */
+  specialStatus?: ('reserved' | 'needs_temp_home' | 'quarantine')[] | null;
+  /**
    * Фото (в MVP), видео — фаза 2
    */
   media?: (number | Media)[] | null;
@@ -1062,6 +1066,7 @@ export interface AnimalsSelect<T extends boolean = true> {
   status?: T;
   source?: T;
   lostOrFound?: T;
+  specialStatus?: T;
   media?: T;
   intakeFacility?: T;
   intakeDate?: T;

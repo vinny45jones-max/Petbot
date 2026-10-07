@@ -100,6 +100,14 @@ export const Animals: CollectionConfig = {
         { label: 'Найден', value: 'found' },
       ],
     },
+    {
+      name: 'specialStatus', type: 'select', hasMany: true, index: true, options: [
+        { label: 'Забронирован', value: 'reserved' },
+        { label: 'Нужна передержка', value: 'needs_temp_home' },
+        { label: 'На карантине', value: 'quarantine' },
+      ],
+      admin: { description: 'Доп.метки для карточки' },
+    },
     { name: 'media', type: 'upload', relationTo: 'media', hasMany: true, admin: { description: 'Фото (в MVP), видео — фаза 2' } },
     // --- критическая вертикаль §17 ---
     { name: 'intakeFacility', type: 'relationship', relationTo: 'intakeFacilities', index: true, admin: { position: 'sidebar' } },
