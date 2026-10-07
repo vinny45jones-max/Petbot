@@ -81,6 +81,7 @@ export interface Config {
     'report-flags': ReportFlag;
     'cruelty-reports': CrueltyReport;
     'partner-applications': PartnerApplication;
+    'blog-posts': BlogPost;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -106,6 +107,7 @@ export interface Config {
     'report-flags': ReportFlagsSelect<false> | ReportFlagsSelect<true>;
     'cruelty-reports': CrueltyReportsSelect<false> | CrueltyReportsSelect<true>;
     'partner-applications': PartnerApplicationsSelect<false> | PartnerApplicationsSelect<true>;
+    'blog-posts': BlogPostsSelect<false> | BlogPostsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -591,6 +593,39 @@ export interface PartnerApplication {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-posts".
+ */
+export interface BlogPost {
+  id: number;
+  title: string;
+  slug?: string | null;
+  category?: ('news' | 'tips' | 'success_story') | null;
+  excerpt?: string | null;
+  coverPhoto?: (number | null) | Media;
+  body?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  author?: (number | null) | User;
+  tags?: string[] | null;
+  status?: ('draft' | 'published') | null;
+  publishedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -668,6 +703,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'partner-applications';
         value: number | PartnerApplication;
+      } | null)
+    | ({
+        relationTo: 'blog-posts';
+        value: number | BlogPost;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1005,6 +1044,24 @@ export interface PartnerApplicationsSelect<T extends boolean = true> {
   links?: T;
   message?: T;
   status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "blog-posts_select".
+ */
+export interface BlogPostsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  category?: T;
+  excerpt?: T;
+  coverPhoto?: T;
+  body?: T;
+  author?: T;
+  tags?: T;
+  status?: T;
+  publishedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
