@@ -4,6 +4,8 @@ import { getPayload } from 'payload';
 import config from '@/payload.config';
 import { Breadcrumbs } from '@/components/layout/Breadcrumbs';
 import { RichText } from '@/components/RichText';
+import { CommentSection } from '@/components/comments/CommentSection';
+import { getCurrentUser } from '@/lib/auth/current-user';
 import type { BlogPost } from '@/payload-types';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +27,7 @@ export async function generateMetadata({ params }: Params) {
 export default async function BlogPostPage({ params }: Params) {
   const post = await getPost((await params).slug);
   if (!post) notFound();
+  const viewer = await getCurrentUser();
   const cover = post.coverPhoto && typeof post.coverPhoto === 'object' ? (post.coverPhoto as any).url : null;
 
   return (
@@ -35,6 +38,7 @@ export default async function BlogPostPage({ params }: Params) {
         {cover && <div className="relative mt-4 aspect-[16/9] overflow-hidden rounded-2xl bg-gray-100"><Image src={cover} alt={post.title} fill sizes="(max-width:768px) 100vw, 768px" className="object-cover" priority /></div>}
         <div className="prose mt-6 max-w-none"><RichText content={post.body} /></div>
       </article>
+      <CommentSection targetType="blog_post" targetId={String(post.id)} isAuthed={!!viewer} />
     </>
   );
 }

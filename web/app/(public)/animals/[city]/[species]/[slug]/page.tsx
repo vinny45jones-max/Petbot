@@ -10,6 +10,8 @@ import type { Metadata } from 'next';
 import { buildAnimalMeta } from '@/lib/meta';
 import { buildAnimalJsonLd } from '@/lib/jsonld';
 import { JsonLd } from '@/components/JsonLd';
+import { CommentSection } from '@/components/comments/CommentSection';
+import { getCurrentUser } from '@/lib/auth/current-user';
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
@@ -41,8 +43,10 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
     .map((m: any) => ({ url: m.sizes?.detail?.url ?? m.url, alt: m.alt }));
   const facility = animal.intakeFacility && typeof animal.intakeFacility === 'object' ? (animal.intakeFacility as any) : null;
   const cityName = animal.city && typeof animal.city === 'object' ? (animal.city as any).nameRu : '';
+  const viewer = await getCurrentUser();
 
   return (
+    <>
     <main className="mx-auto grid max-w-5xl gap-8 px-4 py-8 md:grid-cols-2">
       <JsonLd data={buildAnimalJsonLd(animal, BASE)} />
       <PhotoCarousel photos={photos} />
@@ -69,5 +73,7 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
         </dl>
       </div>
     </main>
+    <CommentSection targetType="animal" targetId={String(animal.id)} isAuthed={!!viewer} />
+    </>
   );
 }
