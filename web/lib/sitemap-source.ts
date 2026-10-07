@@ -1,14 +1,12 @@
 import type { MetadataRoute } from 'next';
 import { getPayload } from 'payload';
 import config from '@/payload.config';
-import { SITEMAP_CHUNK, sitemapShards, animalSitemapEntry } from '@/lib/sitemap-data';
+import { SITEMAP_CHUNK, sitemapShards, animalSitemapEntry, type ShardId } from '@/lib/sitemap-data';
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+export const SITEMAP_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-export async function generateSitemaps() {
+export async function loadShards(): Promise<ShardId[]> {
   const payload = await getPayload({ config });
-  // Считаем шарды через протестированный sitemapShards (а не вручную) —
-  // тогда unit-тест Step 1 покрывает реально исполняемую логику разбиения.
   const [animals, organizations, intakeFacilities] = await Promise.all([
     payload.count({ collection: 'animals', where: { status: { equals: 'published' } } }),
     payload.count({ collection: 'organizations', where: { isPublished: { equals: true } } }),
@@ -21,17 +19,15 @@ export async function generateSitemaps() {
   });
 }
 
-// Next 16: id приходит Promise
-export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
-  const id = await props.id;
-  const payload = await getPayload({ config });
-
+export async function loadShardEntries(id: string): Promise<MetadataRoute.Sitemap> {
+  const BASE = SITEMAP_BASE;
   if (id === 'static') {
-    // Только роуты, существующие в Plan 2. `/report-cruelty`, `/about`, `/contacts`
-    // добавляются в Plan 4 (вместе с этими страницами) — иначе sitemap ведёт на 404.
+    // `/report-cruelty`, `/about`, `/contacts` добавляются в Plan 4 вместе со страницами — иначе sitemap ведёт на 404
     return ['', '/animals', '/animals/urgent', '/organizations', '/intake-facilities']
       .map((p) => ({ url: `${BASE}${p}`, changeFrequency: 'weekly' as const, priority: p === '' ? 1 : 0.6 }));
   }
+
+  const payload = await getPayload({ config });
 
   if (id === 'organizations-0') {
     const res = await payload.find({ collection: 'organizations', where: { isPublished: { equals: true } }, limit: SITEMAP_CHUNK, depth: 0 });
