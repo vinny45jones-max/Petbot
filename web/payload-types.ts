@@ -77,6 +77,8 @@ export interface Config {
     intakeFacilities: IntakeFacility;
     animals: Animal;
     'adoption-inquiries': AdoptionInquiry;
+    comments: Comment;
+    'report-flags': ReportFlag;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -98,6 +100,8 @@ export interface Config {
     intakeFacilities: IntakeFacilitiesSelect<false> | IntakeFacilitiesSelect<true>;
     animals: AnimalsSelect<false> | AnimalsSelect<true>;
     'adoption-inquiries': AdoptionInquiriesSelect<false> | AdoptionInquiriesSelect<true>;
+    comments: CommentsSelect<false> | CommentsSelect<true>;
+    'report-flags': ReportFlagsSelect<false> | ReportFlagsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -175,6 +179,7 @@ export interface User {
   resetPasswordExpiration?: string | null;
   salt?: string | null;
   hash?: string | null;
+  resetPasswordRequestedAt?: string | null;
   _verified?: boolean | null;
   _verificationToken?: string | null;
   loginAttempts?: number | null;
@@ -507,6 +512,36 @@ export interface AdoptionInquiry {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comments".
+ */
+export interface Comment {
+  id: number;
+  author: number | User;
+  targetType: 'animal' | 'blog_post';
+  targetId: string;
+  body: string;
+  parent?: (number | null) | Comment;
+  status?: ('published' | 'hidden' | 'reported') | null;
+  spamScore?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-flags".
+ */
+export interface ReportFlag {
+  id: number;
+  reporter?: (number | null) | User;
+  targetType: 'animal' | 'comment' | 'organization';
+  targetId: string;
+  reason: string;
+  status?: ('new' | 'in_progress' | 'closed') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -568,6 +603,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'adoption-inquiries';
         value: number | AdoptionInquiry;
+      } | null)
+    | ({
+        relationTo: 'comments';
+        value: number | Comment;
+      } | null)
+    | ({
+        relationTo: 'report-flags';
+        value: number | ReportFlag;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -635,6 +678,7 @@ export interface UsersSelect<T extends boolean = true> {
   resetPasswordExpiration?: T;
   salt?: T;
   hash?: T;
+  resetPasswordRequestedAt?: T;
   _verified?: T;
   _verificationToken?: T;
   loginAttempts?: T;
@@ -847,6 +891,34 @@ export interface AdoptionInquiriesSelect<T extends boolean = true> {
   message?: T;
   contactPhone?: T;
   contactTelegram?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "comments_select".
+ */
+export interface CommentsSelect<T extends boolean = true> {
+  author?: T;
+  targetType?: T;
+  targetId?: T;
+  body?: T;
+  parent?: T;
+  status?: T;
+  spamScore?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "report-flags_select".
+ */
+export interface ReportFlagsSelect<T extends boolean = true> {
+  reporter?: T;
+  targetType?: T;
+  targetId?: T;
+  reason?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;
