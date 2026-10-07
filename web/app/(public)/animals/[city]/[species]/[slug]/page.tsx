@@ -4,6 +4,7 @@ import config from '@/payload.config';
 import { formatAge, formatAnimalTitle } from '@/lib/format';
 import { PhotoCarousel } from '@/components/catalog/PhotoCarousel';
 import { IntakeFacilityBlock } from '@/components/catalog/IntakeFacilityBlock';
+import { AdoptModal } from '@/components/adopt/AdoptModal';
 import type { Animal } from '@/payload-types';
 import type { Metadata } from 'next';
 import { buildAnimalMeta } from '@/lib/meta';
@@ -50,9 +51,16 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
         <p className="text-gray-600">{[formatAge(animal.ageYears, animal.ageMonths), cityName].filter(Boolean).join(' · ')}</p>
 
         {facility ? (
-          <IntakeFacilityBlock facility={facility} deadline={animal.legalDeadlineDate as any} />
+          <div className="space-y-3">
+            <IntakeFacilityBlock facility={facility} deadline={animal.legalDeadlineDate as any} />
+            <AdoptModal
+              animalId={String(animal.id)}
+              triggerLabel="Забрать из службы отлова"
+              accent={animal.urgencyLevel === 'critical'}
+            />
+          </div>
         ) : (
-          <button className="rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white">Хочу взять домой</button>
+          <AdoptModal animalId={String(animal.id)} />
         )}
 
         <dl className="grid grid-cols-2 gap-2 text-sm">
