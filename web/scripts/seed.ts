@@ -9,7 +9,9 @@ loadEnv(); // .env как fallback (не перезапишет уже зада�
 const RU_LAT: Record<string, string> = {
   а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'i',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya',
 };
-// Идентичен lib/slug.ts (Plan 2 slugifyRu) — slug города в seed и в рантайме должны совпадать.
+// НЕ совпадает с lib/slug.ts slugifyRu (ц→c, щ→sch, й→i, ё→e против ts/shch/y/yo): различаются 25 из 117 городов.
+// Slug городов уже в БД и входят в URL — схема заморожена. Переход на slugifyRu = отдельная миграция slug'ов,
+// иначе поиск existing по slug промахнётся и seed создаст дубли городов.
 function slugify(s: string): string {
   return s.toLowerCase().split('').map((ch) => RU_LAT[ch] ?? ch).join('')
     .normalize('NFKD').replace(/[̀-ͯ]/g, '')
