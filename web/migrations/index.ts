@@ -3,6 +3,7 @@ import * as migration_20261007_190524_comments_report_flags from './20261007_190
 import * as migration_20261007_190812_cruelty_partner_apps from './20261007_190812_cruelty_partner_apps';
 import * as migration_20261007_191026_blog_posts from './20261007_191026_blog_posts';
 import * as migration_20261007_191311_legal_articles from './20261007_191311_legal_articles';
+import * as migration_20261007_191549_help_glossary from './20261007_191549_help_glossary';
 
 export const migrations = [
   {
@@ -28,6 +29,11 @@ export const migrations = [
   {
     up: migration_20261007_191311_legal_articles.up,
     down: migration_20261007_191311_legal_articles.down,
-    name: '20261007_191311_legal_articles'
+    name: '20261007_191311_legal_articles',
+  },
+  {
+    up: migration_20261007_191549_help_glossary.up,
+    down: migration_20261007_191549_help_glossary.down,
+    name: '20261007_191549_help_glossary'
   },
 ];

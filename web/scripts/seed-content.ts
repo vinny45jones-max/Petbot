@@ -43,6 +43,38 @@ async function main() {
     ],
   });
 
+  const glossary = [
+    { slug: 'sterilization', term: 'Стерилизация', definition: 'Операция, после которой животное не может иметь потомство. Снижает число бездомных животных и полезна для здоровья.' },
+    { slug: 'chipping', term: 'Чипирование', definition: 'Под кожу вживляется микрочип с 15-значным номером. По нему можно найти владельца потерянного животного.' },
+    { slug: 'foster', term: 'Передержка', definition: 'Временное содержание животного дома у волонтёра, пока ищут постоянного хозяина.' },
+    { slug: 'guardianship', term: 'Опека', definition: 'Финансовая или организационная помощь конкретному животному без его забора домой.' },
+  ];
+  for (const g of glossary) {
+    const f = await payload.find({ collection: 'glossary-terms', where: { slug: { equals: g.slug } }, limit: 1 });
+    if (!f.docs.length) { await payload.create({ collection: 'glossary-terms', data: g }); console.log(`[seed] glossary: ${g.slug}`); }
+  }
+
+  const faqs = [
+    { slug: 'faq-how-to-post', category: 'faq' as const, title: 'Как разместить животное?', order: 1,
+      answer: 'Войдите на сайт и нажмите «Разместить животное» в личном кабинете, заполните анкету и добавьте фото. Объявление частного лица появится в каталоге после проверки модератором (обычно до 24 часов). Приюты публикуют без проверки.' },
+    { slug: 'faq-is-it-free', category: 'faq' as const, title: 'Это бесплатно?', order: 2,
+      answer: 'Да. Размещать животных, искать питомца и связываться с приютами можно бесплатно. Для приютов подключение тоже бесплатно.' },
+    { slug: 'faq-how-adopt', category: 'faq' as const, title: 'Как взять животное домой?', order: 3,
+      answer: 'Откройте карточку животного и нажмите «Хочу взять домой». Заявка уйдёт приюту или хозяину — они свяжутся с вами по телефону или в Telegram.' },
+  ];
+  for (const { answer, ...a } of faqs) {
+    const f = await payload.find({ collection: 'help-articles', where: { slug: { equals: a.slug } }, limit: 1 });
+    if (!f.docs.length) {
+      await payload.create({ collection: 'help-articles', data: {
+        ...a,
+        body: { root: { type: 'root', format: '', indent: 0, version: 1, direction: 'ltr', children: [
+          { type: 'paragraph', version: 1, children: [{ type: 'text', text: answer, version: 1 }] },
+        ] } },
+      } });
+      console.log(`[seed] faq: ${a.slug}`);
+    }
+  }
+
   console.log('[seed] content done');
   process.exit(0);
 }
