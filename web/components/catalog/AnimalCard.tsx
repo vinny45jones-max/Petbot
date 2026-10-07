@@ -18,7 +18,7 @@ export function AnimalCard({ animal }: { animal: Animal }) {
         {cardSrc ? (
           <Image src={cardSrc} alt={(img as any)?.alt ?? 'Фото животного'} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" loading="lazy" />
         ) : (
-          <div className="flex h-full items-center justify-center text-gray-400">нет фото</div>
+          <div className="flex h-full items-center justify-center text-gray-600">нет фото</div>
         )}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
           <UrgencyBadge deadline={animal.legalDeadlineDate as any} />

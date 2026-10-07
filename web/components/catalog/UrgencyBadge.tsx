@@ -10,7 +10,7 @@ export function UrgencyBadge({ deadline }: { deadline?: string | null }) {
   return (
     <span
       role="status"
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-white ${critical ? 'bg-red-600' : 'bg-orange-500'}`}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold text-white ${critical ? 'bg-red-600' : 'bg-orange-700'}`}
     >
       {critical ? 'СРОЧНО' : 'Срочно'} · {label}
     </span>

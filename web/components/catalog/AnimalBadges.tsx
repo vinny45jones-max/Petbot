@@ -2,9 +2,9 @@ import { computeAnimalBadges, type AnimalBadgeInput, type BadgeTone } from '@/li
 
 const TONE: Record<BadgeTone, string> = {
   critical: 'bg-red-600 text-white',
-  warning: 'bg-orange-500 text-white',
+  warning: 'bg-orange-700 text-white', // 500/600 с белым ниже WCAG AA
   info: 'bg-blue-600 text-white',
-  success: 'bg-green-600 text-white',
+  success: 'bg-green-700 text-white',
   neutral: 'bg-gray-700 text-white',
 };
 
