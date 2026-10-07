@@ -1,37 +1,27 @@
 import { config as loadEnv } from 'dotenv';
 import { getPayload } from 'payload';
 import { citiesBY } from '../lib/seeds/cities-by.ts';
+import { planCitySync } from '../lib/seeds/city-sync.ts';
 
 // .env.local (Next-конвенция) грузим ДО payload.config, иначе DATABASE_URL/PAYLOAD_SECRET пустые.
 loadEnv({ path: '.env.local' });
 loadEnv(); // .env как fallback (не перезапишет уже заданное)
 
-const RU_LAT: Record<string, string> = {
-  а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'i',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya',
-};
-// НЕ совпадает с lib/slug.ts slugifyRu (ц→c, щ→sch, й→i, ё→e против ts/shch/y/yo): различаются 25 из 117 городов.
-// Slug городов уже в БД и входят в URL — схема заморожена. Переход на slugifyRu = отдельная миграция slug'ов,
-// иначе поиск existing по slug промахнётся и seed создаст дубли городов.
-function slugify(s: string): string {
-  return s.toLowerCase().split('').map((ch) => RU_LAT[ch] ?? ch).join('')
-    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
 async function main() {
   // Динамический импорт: payload.config читает process.env при вычислении, env уже загружен выше.
   const { default: config } = await import('../payload.config.ts');
   const payload = await getPayload({ config });
-  let created = 0;
-  let skipped = 0;
-  for (const city of citiesBY) {
-    const slug = slugify(city.nameRu);
-    const existing = await payload.find({ collection: 'cities', where: { slug: { equals: slug } }, limit: 1 });
-    if (existing.docs.length) { skipped++; continue; }
-    await payload.create({ collection: 'cities', data: { ...city, slug } });
-    created++;
+  const { docs } = await payload.find({ collection: 'cities', limit: 1000, depth: 0, pagination: false });
+  const plan = planCitySync(citiesBY, docs);
+  for (const city of plan.create) {
+    await payload.create({ collection: 'cities', data: city });
   }
-  console.log(`Seeded ${created} cities, skipped ${skipped} existing.`);
+  // Миграция slug'ов старой схемы транслитерации (ц→c, щ→sch, й→i, ё→e) на lib/slug slugifyRu.
+  for (const u of plan.update) {
+    await payload.update({ collection: 'cities', id: u.id, data: { slug: u.to } });
+    console.log(`City slug: ${u.nameRu} ${u.from} → ${u.to}`);
+  }
+  console.log(`Cities: created ${plan.create.length}, slug migrated ${plan.update.length}, total in seed ${citiesBY.length}.`);
   process.exit(0);
 }
 
