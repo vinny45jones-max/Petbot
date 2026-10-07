@@ -79,6 +79,8 @@ export interface Config {
     'adoption-inquiries': AdoptionInquiry;
     comments: Comment;
     'report-flags': ReportFlag;
+    'cruelty-reports': CrueltyReport;
+    'partner-applications': PartnerApplication;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -102,6 +104,8 @@ export interface Config {
     'adoption-inquiries': AdoptionInquiriesSelect<false> | AdoptionInquiriesSelect<true>;
     comments: CommentsSelect<false> | CommentsSelect<true>;
     'report-flags': ReportFlagsSelect<false> | ReportFlagsSelect<true>;
+    'cruelty-reports': CrueltyReportsSelect<false> | CrueltyReportsSelect<true>;
+    'partner-applications': PartnerApplicationsSelect<false> | PartnerApplicationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -542,6 +546,51 @@ export interface ReportFlag {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cruelty-reports".
+ */
+export interface CrueltyReport {
+  id: number;
+  description: string;
+  photos?: (number | Media)[] | null;
+  /**
+   * Опционально, для анонимных пусто
+   */
+  contact?: string | null;
+  /**
+   * null для анонимных
+   */
+  reporterUser?: (number | null) | User;
+  locationCity?: (number | null) | City;
+  status?: ('new' | 'in_progress' | 'closed') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "partner-applications".
+ */
+export interface PartnerApplication {
+  id: number;
+  name: string;
+  /**
+   * 9 цифр
+   */
+  unp?: string | null;
+  /**
+   * Телефон/email/TG
+   */
+  contact: string;
+  /**
+   * Ссылки на соцсети/сайт
+   */
+  links?: string | null;
+  message?: string | null;
+  status?: ('new' | 'in_review' | 'approved' | 'rejected') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -611,6 +660,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'report-flags';
         value: number | ReportFlag;
+      } | null)
+    | ({
+        relationTo: 'cruelty-reports';
+        value: number | CrueltyReport;
+      } | null)
+    | ({
+        relationTo: 'partner-applications';
+        value: number | PartnerApplication;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -919,6 +976,34 @@ export interface ReportFlagsSelect<T extends boolean = true> {
   targetType?: T;
   targetId?: T;
   reason?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "cruelty-reports_select".
+ */
+export interface CrueltyReportsSelect<T extends boolean = true> {
+  description?: T;
+  photos?: T;
+  contact?: T;
+  reporterUser?: T;
+  locationCity?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "partner-applications_select".
+ */
+export interface PartnerApplicationsSelect<T extends boolean = true> {
+  name?: T;
+  unp?: T;
+  contact?: T;
+  links?: T;
+  message?: T;
   status?: T;
   updatedAt?: T;
   createdAt?: T;
