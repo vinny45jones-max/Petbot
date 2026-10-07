@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { lexicalEditor } from '@payloadcms/richtext-lexical';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sharp from 'sharp';
 import { Users } from './collections/Users.ts';
 import { Cities } from './collections/Cities.ts';
 import { Media } from './collections/Media.ts';
@@ -41,6 +42,8 @@ export default buildConfig({
       })
     : undefined,
   editor: lexicalEditor({}),
+  // Без sharp Payload не режет Media.imageSizes (thumb/card/detail) и игнорирует focalPoint.
+  sharp,
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: { outputFile: path.resolve(dirname, 'payload-types.ts') },
   db: postgresAdapter({
