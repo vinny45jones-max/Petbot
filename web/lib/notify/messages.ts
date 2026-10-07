@@ -32,3 +32,23 @@ export function newInquiryMessage(i: NewInquiryMsg): string {
     i.telegram ? `Telegram: ${i.telegram}` : null,
   ].filter(Boolean).join('\n');
 }
+
+export interface UrgentMsg {
+  title: string;        // «Рекс №12» или «№12»
+  city?: string | null;
+  daysLeft: number | null;
+  url: string;
+  facility?: string | null;
+}
+
+/** Автопост §17.6 в публичный канал о животном с критическим сроком. */
+export function urgentAnimalMessage(a: UrgentMsg): string {
+  // как UrgencyBadge: 0 и меньше — срок истекает, не «осталось 0 дн.»
+  const left = a.daysLeft != null && a.daysLeft > 0 ? `Осталось ${a.daysLeft} дн.` : 'Истекает срок содержания';
+  return [
+    `🔴 СРОЧНО: ${a.title}${a.city ? `, ${a.city}` : ''}`,
+    a.facility ? `Служба отлова: ${a.facility}` : null,
+    left,
+    `Забрать/поделиться: ${a.url}`,
+  ].filter(Boolean).join('\n');
+}
