@@ -15,12 +15,12 @@ export default async function HomePage() {
 
   const [critical, fresh, orgs] = await Promise.all([
     payload.find({
-      collection: 'animals', depth: 2, limit: 3,
+      collection: 'animals', depth: 1, limit: 3,
       where: { and: [{ status: { equals: 'published' } }, { urgencyLevel: { equals: 'critical' } }] },
       sort: 'legalDeadlineDate',
     }),
     payload.find({
-      collection: 'animals', depth: 2, limit: 6,
+      collection: 'animals', depth: 1, limit: 6,
       where: { status: { equals: 'published' } }, sort: '-publishedAt',
     }),
     payload.find({
