@@ -3,13 +3,23 @@ import { getPayload } from 'payload';
 import config from '@/payload.config';
 import { notifyNewInquiry } from '@/lib/notify/dispatch';
 import { formatAnimalTitle } from '@/lib/format';
+import { verifyTurnstile } from '@/lib/security/turnstile';
+import { checkRateLimit, clientIp } from '@/lib/security/rate-limit';
 
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config });
   const session = await payload.auth({ headers: req.headers });
   if (!session.user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const ip = clientIp(req);
+  if (!checkRateLimit(`inquiry:${ip}`, 10, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: 'Слишком много заявок. Попробуйте позже.' }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
+  if (!(await verifyTurnstile(body?.turnstileToken, ip))) {
+    return NextResponse.json({ error: 'Проверка не пройдена. Обновите страницу.' }, { status: 400 });
+  }
   if (!body?.animalId || !body?.message || String(body.message).trim().length < 1) {
     return NextResponse.json({ error: 'invalid' }, { status: 400 });
   }

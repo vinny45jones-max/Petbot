@@ -8,6 +8,8 @@ import { userAdministersOrg } from '@/lib/auth/org-access';
 import { recordAuditLog } from '@/lib/audit/log';
 import { validateAnimalDraft, type AnimalDraft } from '@/lib/animal-form';
 import { notifyNewAnimal } from '@/lib/notify/dispatch';
+import { verifyTurnstile } from '@/lib/security/turnstile';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 import type { User } from '@/payload-types';
 
 export interface CreateAnimalInput extends AnimalDraft {
@@ -15,6 +17,7 @@ export interface CreateAnimalInput extends AnimalDraft {
   organizationId?: string;   // при создании от лица организации
   intakeFacilityId?: string; // только для org_admin (модель А, §17.7)
   intakeDate?: string;
+  turnstileToken?: string;
 }
 
 export type ActionResult = { ok: true; id: string } | { ok: false; errors: Record<string, string> };
@@ -64,6 +67,14 @@ async function resolveOwnership(payload: Payload, user: User, input: CreateAnima
 export async function createAnimal(input: CreateAnimalInput): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, errors: { auth: 'Требуется вход' } };
+
+  // server action не видит Request — лимит по пользователю (вход обязателен), не по IP
+  if (!checkRateLimit(`animal-create:${user.id}`, 20, 60 * 60 * 1000)) {
+    return { ok: false, errors: { form: 'Слишком много объявлений за час. Попробуйте позже.' } };
+  }
+  if (!(await verifyTurnstile(input.turnstileToken))) {
+    return { ok: false, errors: { form: 'Проверка не пройдена. Обновите страницу.' } };
+  }
 
   const draft: AnimalDraft = { ...input, photoCount: input.mediaIds.length };
   const validation = validateAnimalDraft(draft);

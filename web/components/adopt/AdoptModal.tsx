@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { TurnstileWidget, readTurnstileToken } from '@/components/security/TurnstileWidget';
 
 export function AdoptModal({ animalId, defaultPhone, defaultTelegram, triggerLabel = 'Хочу взять домой', accent = false }: { animalId: string; defaultPhone?: string; defaultTelegram?: string; triggerLabel?: string; accent?: boolean }) {
   const router = useRouter();
@@ -9,14 +10,19 @@ export function AdoptModal({ animalId, defaultPhone, defaultTelegram, triggerLab
   const [phone, setPhone] = useState(defaultPhone ?? '');
   const [telegram, setTelegram] = useState(defaultTelegram ?? '');
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   async function submit() {
     setState('sending');
     const res = await fetch('/api/inquiries', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ animalId, message, phone, telegram }),
+      body: JSON.stringify({ animalId, message, phone, telegram, turnstileToken: readTurnstileToken() }),
     });
     if (res.status === 401) { router.push('/login'); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setErrorText(res.status === 429 || res.status === 400 ? data?.error ?? null : null);
+    }
     setState(res.ok ? 'done' : 'error');
   }
 
@@ -42,7 +48,8 @@ export function AdoptModal({ animalId, defaultPhone, defaultTelegram, triggerLab
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Коротко о себе и почему хотите взять" rows={4} className="w-full rounded-lg border px-2 py-1" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Телефон" className="w-full rounded-lg border px-2 py-1" />
             <input value={telegram} onChange={(e) => setTelegram(e.target.value)} placeholder="Telegram" className="w-full rounded-lg border px-2 py-1" />
-            {state === 'error' && <p className="text-sm text-red-600">Не удалось отправить. Попробуйте позже.</p>}
+            <TurnstileWidget />
+            {state === 'error' && <p className="text-sm text-red-600" role="alert">{errorText ?? 'Не удалось отправить. Попробуйте позже.'}</p>}
             <div className="flex justify-end gap-2">
               <button onClick={() => setOpen(false)} className="rounded-lg border px-4 py-2">Отмена</button>
               <button onClick={submit} disabled={state === 'sending' || message.trim().length < 1} className="rounded-lg bg-blue-600 px-4 py-2 text-white">{state === 'sending' ? 'Отправка…' : 'Отправить'}</button>

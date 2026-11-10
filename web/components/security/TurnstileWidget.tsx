@@ -7,6 +7,11 @@ declare global {
   }
 }
 
+/** Токен из скрытого input виджета — для форм, отправляющих JSON или server action, а не FormData. */
+export function readTurnstileToken(): string {
+  return document.querySelector<HTMLInputElement>('[name="cf-turnstile-response"]')?.value ?? '';
+}
+
 /** Рендерит Turnstile-виджет и кладёт токен в скрытый input name="cf-turnstile-response". */
 export function TurnstileWidget() {
   const ref = useRef<HTMLDivElement>(null);

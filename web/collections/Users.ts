@@ -1,5 +1,8 @@
 import type { CollectionConfig } from 'payload';
 import { isAdmin } from '../lib/auth/rbac.ts';
+import { makeRegistrationGuard } from '../lib/auth/registration-guard.ts';
+import { verifyTurnstile } from '../lib/security/turnstile.ts';
+import { checkRateLimit } from '../lib/security/rate-limit.ts';
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -9,6 +12,12 @@ export const Users: CollectionConfig = {
     cookies: { sameSite: 'Lax', secure: process.env.NODE_ENV === 'production' },
   },
   admin: { useAsTitle: 'email', defaultColumns: ['email', 'firstName', 'role', 'createdAt'] },
+  hooks: {
+    // §16.2: 10 регистраций в час с одного IP + Turnstile
+    beforeOperation: [
+      makeRegistrationGuard({ verify: verifyTurnstile, allow: (key) => checkRateLimit(key, 10, 60 * 60 * 1000) }) as any,
+    ],
+  },
   access: {
     read: ({ req: { user } }) => {
       if (!user) return false;

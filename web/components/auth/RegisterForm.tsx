@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 
 export function RegisterForm() {
   const [email, setEmail] = useState('');
@@ -18,13 +19,15 @@ export function RegisterForm() {
     if (!ageConfirmed) { setError('Нужно подтвердить возраст 14+'); return; }
     if (!consent) { setError('Нужно согласие на обработку перс.данных (закон 99-З)'); return; }
     setLoading(true);
+    const token = (e.currentTarget as HTMLFormElement).querySelector<HTMLInputElement>('[name="cf-turnstile-response"]')?.value ?? '';
     const r = await fetch('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-turnstile-token': token },
       body: JSON.stringify({ email, password, firstName, ageConfirmed, consentPersonalData: consent, role: 'citizen' }),
     });
     setLoading(false);
     if (r.ok) window.location.href = '/verify-email?sent=1';
+    else if (r.status === 429) setError('Слишком много регистраций. Попробуйте позже.');
     else setError('Ошибка регистрации. Возможно email уже используется.');
   }
 
@@ -51,6 +54,7 @@ export function RegisterForm() {
         <input id="consent" type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} required className="mt-1" />
         <Label htmlFor="consent" className="text-sm">Даю согласие на обработку персональных данных по закону РБ 99-З</Label>
       </div>
+      <TurnstileWidget />
       {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <Button type="submit" disabled={loading} className="w-full">{loading ? 'Регистрация...' : 'Зарегистрироваться'}</Button>
     </form>

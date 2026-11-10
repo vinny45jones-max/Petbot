@@ -5,6 +5,7 @@ import { PhotoUpload, type UploadedPhoto } from './PhotoUpload';
 import { AnimalFormFields } from './AnimalFormFields';
 import { validateAnimalDraft, type AnimalDraft } from '@/lib/animal-form';
 import { createAnimal } from '@/actions/animal';
+import { TurnstileWidget, readTurnstileToken } from '@/components/security/TurnstileWidget';
 
 interface CityOption { id: string; nameRu: string }
 interface FacilityOption { id: string; name: string }
@@ -30,7 +31,7 @@ export function AnimalWizard({ cities, organizationId, successRedirect = '/me/an
     const v = validateAnimalDraft(full);
     if (!v.ok) { setErrors(v.errors); return; }
     setSubmitting(true);
-    const res = await createAnimal({ ...draft, mediaIds: photos.map((p) => p.id), organizationId, intakeFacilityId: intakeFacilityId || undefined, intakeDate: intakeDate || undefined });
+    const res = await createAnimal({ ...draft, mediaIds: photos.map((p) => p.id), organizationId, intakeFacilityId: intakeFacilityId || undefined, intakeDate: intakeDate || undefined, turnstileToken: readTurnstileToken() });
     setSubmitting(false);
     if (res.ok) router.push(`${successRedirect}?created=1`);
     else setErrors(res.errors);
@@ -75,6 +76,8 @@ export function AnimalWizard({ cities, organizationId, successRedirect = '/me/an
           <p className="text-sm text-gray-600">{photos.length} фото · {draft.species} · {cities.find((c) => c.id === draft.city)?.nameRu}</p>
           {errors.auth && <p className="text-sm text-red-600">{errors.auth}</p>}
           {errors.org && <p className="text-sm text-red-600">{errors.org}</p>}
+          <TurnstileWidget />
+          {errors.form && <p className="text-sm text-red-600" role="alert">{errors.form}</p>}
         </section>
       )}
 
