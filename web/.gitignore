@@ -24,7 +24,9 @@
 /build
 
 # payload local media uploads (fallback без R2)
-/media/
+/media/*
+# демо-витрина (seed:demo): файлы лежат в репозитории, потому что на проде нет R2 и диск контейнера не переживает деплой
+!/media/demo-*
 
 # misc
 .DS_Store

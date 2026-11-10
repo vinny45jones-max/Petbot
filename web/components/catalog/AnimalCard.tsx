@@ -14,9 +14,9 @@ export function AnimalCard({ animal }: { animal: Animal }) {
 
   return (
     <Link href={animalUrl(animal as any)} className="group block overflow-hidden rounded-2xl border border-gray-200 transition hover:shadow-lg">
-      <div className="relative aspect-[4/3] bg-gray-100">
+      <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
         {cardSrc ? (
-          <Image src={cardSrc} alt={(img as any)?.alt ?? 'Фото животного'} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover" loading="lazy" />
+          <Image src={cardSrc} alt={(img as any)?.alt ?? 'Фото животного'} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover transition duration-300 group-hover:scale-105" loading="lazy" />
         ) : (
           <div className="flex h-full items-center justify-center text-gray-600">нет фото</div>
         )}

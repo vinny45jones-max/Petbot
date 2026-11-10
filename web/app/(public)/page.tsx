@@ -34,7 +34,7 @@ export default async function HomePage() {
       <Hero />
       <UrgentHero animals={critical.docs as Animal[]} />
       <HomeSection title="Свежие объявления" moreHref="/animals">
-        <AnimalGrid animals={fresh.docs as Animal[]} />
+        <AnimalGrid animals={fresh.docs as Animal[]} emptyText="Пока нет объявлений. Станьте первым — разместите животное." />
       </HomeSection>
       <HomeSection title="Приюты и волонтёры" moreHref="/organizations">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
