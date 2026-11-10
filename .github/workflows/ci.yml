@@ -1,9 +1,9 @@
 name: CI
 
+# Автозапуск отключён 10.11.2026: CI гоняется локально (cd web && npm run ci:local).
+# Остался только ручной запуск со страницы Actions.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
