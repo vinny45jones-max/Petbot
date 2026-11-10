@@ -368,6 +368,10 @@ export interface NotificationPreference {
    * Города, по которым приходят алерты о срочных животных
    */
   emailUrgentInCities?: (number | City)[] | null;
+  /**
+   * Троттлинг: не чаще 1 письма о срочных в сутки
+   */
+  urgentLastSentAt?: string | null;
   emailWeeklyDigest?: boolean | null;
   updatedAt: string;
   createdAt: string;
@@ -506,6 +510,10 @@ export interface Animal {
   legalDeadlineDate?: string | null;
   urgencyLevel?: ('normal' | 'high' | 'critical') | null;
   urgencyRank?: number | null;
+  /**
+   * §17.6: когда анонсирован как critical (канал + письма)
+   */
+  urgentAnnouncedAt?: string | null;
   publishedAt?: string | null;
   adoptedAt?: string | null;
   updatedAt: string;
@@ -976,6 +984,7 @@ export interface NotificationPreferencesSelect<T extends boolean = true> {
   emailModerationResult?: T;
   emailDonationReceipt?: T;
   emailUrgentInCities?: T;
+  urgentLastSentAt?: T;
   emailWeeklyDigest?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -1073,6 +1082,7 @@ export interface AnimalsSelect<T extends boolean = true> {
   legalDeadlineDate?: T;
   urgencyLevel?: T;
   urgencyRank?: T;
+  urgentAnnouncedAt?: T;
   publishedAt?: T;
   adoptedAt?: T;
   updatedAt?: T;

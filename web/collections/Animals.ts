@@ -121,6 +121,7 @@ export const Animals: CollectionConfig = {
       ],
     },
     { name: 'urgencyRank', type: 'number', defaultValue: 0, index: true, admin: { hidden: true } },
+    { name: 'urgentAnnouncedAt', type: 'date', admin: { position: 'sidebar', readOnly: true, description: '§17.6: когда анонсирован как critical (канал + письма)' } },
     { name: 'publishedAt', type: 'date', admin: { position: 'sidebar', readOnly: true } },
     { name: 'adoptedAt', type: 'date', admin: { position: 'sidebar', readOnly: true } },
   ],

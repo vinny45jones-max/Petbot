@@ -24,6 +24,7 @@ export const NotificationPreferences: CollectionConfig = {
     { name: 'emailModerationResult', type: 'checkbox', defaultValue: true },
     { name: 'emailDonationReceipt', type: 'checkbox', defaultValue: true },
     { name: 'emailUrgentInCities', type: 'relationship', relationTo: 'cities', hasMany: true, admin: { description: 'Города, по которым приходят алерты о срочных животных' } },
+    { name: 'urgentLastSentAt', type: 'date', admin: { readOnly: true, position: 'sidebar', description: 'Троттлинг: не чаще 1 письма о срочных в сутки' } },
     { name: 'emailWeeklyDigest', type: 'checkbox', defaultValue: false },
   ],
   timestamps: true,
