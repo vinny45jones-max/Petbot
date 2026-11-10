@@ -17,6 +17,7 @@
     "seed": "node scripts/seed.ts",
     "seed:content": "node scripts/seed-content.ts",
     "cron:urgency": "node scripts/cron-urgency.ts",
+    "ci:local": "bash scripts/ci-local.sh",
     "migrate": "payload migrate --disable-transpile",
     "migrate:create": "payload migrate:create --disable-transpile"
   },

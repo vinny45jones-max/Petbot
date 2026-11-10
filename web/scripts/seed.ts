@@ -56,7 +56,16 @@ async function seedOrgs(payload: any) {
 async function seedAnimals(payload: any) {
   for (const a of demoAnimals) {
     const exists = await payload.find({ collection: 'animals', where: { name: { equals: a.name }, city: { equals: await findCityId(payload, a.cityName) } }, limit: 1, depth: 0 });
-    if (a.name && exists.docs.length) continue;
+    if (a.name && exists.docs.length) {
+      // даты срочности считаются от дня запуска: у уже созданного демо-животного освежаем intakeDate,
+      // иначе через неделю дедлайн истекает и e2e с «Осталось N дн.» падают на старой БД
+      if (a.facilityName && a.intakeOffsetDays != null) {
+        await payload.update({ collection: 'animals', id: exists.docs[0].id, data: {
+          intakeDate: new Date(Date.now() - a.intakeOffsetDays * 86400000).toISOString(), legalDeadlineDate: null,
+        }});
+      }
+      continue;
+    }
     let orgId: string | null = null;
     if (a.orgName) {
       const org = await payload.find({ collection: 'organizations', where: { name: { equals: a.orgName } }, limit: 1, depth: 0 });
