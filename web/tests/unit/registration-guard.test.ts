@@ -43,4 +43,12 @@ describe('makeRegistrationGuard', () => {
     expect(calls.allow).toHaveLength(0);
     expect(calls.verify).toHaveLength(0);
   });
+
+  it('создание первого администратора (/api/users/first-register) не требует Turnstile', async () => {
+    const { guard, calls } = setup({ verifyOk: false });
+    const out = await guard({ operation: 'create', args: ARGS, req: req({ pathname: '/api/users/first-register' }) });
+    expect(out).toBe(ARGS);
+    expect(calls.verify).toHaveLength(0);
+    await expect(guard({ operation: 'create', args: ARGS, req: req({ pathname: '/api/users' }) })).rejects.toMatchObject({ status: 400 });
+  });
 });

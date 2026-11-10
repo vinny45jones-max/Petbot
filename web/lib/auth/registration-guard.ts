@@ -8,7 +8,7 @@ export interface RegistrationGuardDeps {
 interface GuardArgs {
   operation: string;
   args: any;
-  req: { payloadAPI?: string; user?: unknown; headers: Headers };
+  req: { payloadAPI?: string; user?: unknown; headers: Headers; pathname?: string };
 }
 
 /**
@@ -19,6 +19,8 @@ interface GuardArgs {
 export function makeRegistrationGuard(deps: RegistrationGuardDeps) {
   return async ({ operation, args, req }: GuardArgs) => {
     if (operation !== 'create' || req.payloadAPI !== 'REST' || req.user) return args;
+    // /api/users/first-register (первый администратор из админки) тоже приходит как create с REST-запросом
+    if (req.pathname && !/\/users\/?$/.test(req.pathname)) return args;
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('cf-connecting-ip') || 'unknown';
     if (!deps.allow(`register:${ip}`)) {
       throw new APIError('Слишком много регистраций. Попробуйте позже.', 429, undefined, true);
