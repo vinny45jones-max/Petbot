@@ -11,6 +11,7 @@ import { buildAnimalMeta } from '@/lib/meta';
 import { buildAnimalJsonLd } from '@/lib/jsonld';
 import { JsonLd } from '@/components/JsonLd';
 import { CommentSection } from '@/components/comments/CommentSection';
+import { SimilarAnimals } from '@/components/catalog/SimilarAnimals';
 import { getCurrentUser } from '@/lib/auth/current-user';
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
@@ -73,6 +74,7 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
         </dl>
       </div>
     </main>
+    <SimilarAnimals animal={{ id: animal.id, species: animal.species, city: animal.city as any }} />
     <CommentSection targetType="animal" targetId={String(animal.id)} isAuthed={!!viewer} />
     </>
   );
