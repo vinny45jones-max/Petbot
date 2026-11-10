@@ -47,8 +47,8 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
     <main className="mx-auto max-w-6xl px-4 py-8">
       <JsonLd data={buildOrganizationJsonLd(org, BASE)} />
       {coverSrc && (
-        <div className="relative mb-6 aspect-[3/1] overflow-hidden rounded-2xl bg-gray-100">
-          <Image src={coverSrc} alt="" fill sizes="(max-width: 1152px) 100vw, 1152px" className="object-cover" priority />
+        <div className="relative mb-6 aspect-[2/1] overflow-hidden rounded-2xl bg-gray-100 md:aspect-[5/2]">
+          <Image src={coverSrc} alt="" fill sizes="(max-width: 1152px) 100vw, 1152px" className="object-cover object-[center_35%]" priority />
         </div>
       )}
       <div className="flex flex-wrap items-center gap-3">
