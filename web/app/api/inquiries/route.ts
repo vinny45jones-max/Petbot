@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   await payload.create({
     collection: 'adoption-inquiries',
     data: {
-      animal: body.animalId, applicant: session.user.id, message: String(body.message).slice(0, 2000),
+      animal: animal.id, applicant: session.user.id, message: String(body.message).slice(0, 2000),
       contactPhone: body.phone ?? session.user.phone ?? undefined,
       contactTelegram: body.telegram ?? (session.user.telegramUsername ? `@${session.user.telegramUsername}` : undefined),
       status: 'new',
@@ -47,14 +47,19 @@ export async function POST(req: NextRequest) {
     const org: any = await payload.findByID({ collection: 'organizations', id: typeof animal.organization === 'object' ? animal.organization.id : animal.organization, depth: 0 }).catch(() => null);
     ownerEmail = org?.email ?? null;
   }
-  await notifyNewInquiry({
-    ownerEmail, applicantEmail: session.user.email ?? null,
-    animalTitle: formatAnimalTitle(animal),
-    applicantName: [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || undefined,
-    phone: body.phone ?? session.user.phone ?? undefined,
-    telegram: body.telegram ?? undefined,
-    message: String(body.message),
-  });
+  // заявка уже сохранена — сбой почты/Telegram не должен превращать её в ошибку для заявителя
+  try {
+    await notifyNewInquiry({
+      ownerEmail, applicantEmail: session.user.email ?? null,
+      animalTitle: formatAnimalTitle(animal),
+      applicantName: [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || undefined,
+      phone: body.phone ?? session.user.phone ?? undefined,
+      telegram: body.telegram ?? undefined,
+      message: String(body.message),
+    });
+  } catch (e) {
+    console.error('[inquiries] notify failed', e);
+  }
 
   return NextResponse.json({ ok: true });
 }

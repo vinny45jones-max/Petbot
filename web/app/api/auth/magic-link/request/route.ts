@@ -16,7 +16,12 @@ export async function POST(req: NextRequest) {
     const token = generateMagicToken();
     await payload.create({ collection: 'magic-link-tokens', data: { tokenHash: hashToken(token), user: user.id } });
     const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/magic-link/consume?token=${token}`;
-    await sendEmail({ to: email, subject: 'Вход на Pet Aggregator BY', react: MagicLink({ loginUrl: url }) });
+    // сбой почты не должен отличать ответ для существующего адреса (иначе 500 раскрывает регистрацию)
+    try {
+      await sendEmail({ to: email, subject: 'Вход на Pet Aggregator BY', react: MagicLink({ loginUrl: url }) });
+    } catch (e) {
+      console.error('[magic-link] email failed', e);
+    }
   }
   return NextResponse.json({ ok: true });
 }
