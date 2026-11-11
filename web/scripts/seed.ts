@@ -110,6 +110,7 @@ async function main() {
   await seedAnimals(payload);
   for (const email of TEST_CITIZENS) await seedTestUser(payload, email);
   await seedTestOrgAdmin(payload);
+  await seedTestDonations(payload);
   console.log('Seeded facilities, orgs, animals.');
   process.exit(0);
 }
@@ -122,6 +123,7 @@ const TEST_CITIZENS = [
   'citizen-header@test.local',
   'citizen-inquiry@test.local',
   'citizen-comments@test.local',
+  'citizen-donations@test.local',
 ];
 
 async function seedTestUser(payload: any, email: string) {
@@ -153,6 +155,22 @@ async function seedTestOrgAdmin(payload: any) {
       collection: 'organizations',
       data: { name: 'Тест-приют', slug: 'test-shelter', isVerified: true, isPublished: true, admins: [user.id] } as any,
       overrideAccess: true,
+    });
+  }
+}
+
+// Донаты для e2e кабинетов: оплаченный и неоплаченный от citizen-donations приюту test-shelter.
+async function seedTestDonations(payload: any) {
+  if (process.env.NODE_ENV === 'production') return;
+  const donor = (await payload.find({ collection: 'users', where: { email: { equals: 'citizen-donations@test.local' } }, limit: 1, overrideAccess: true })).docs[0];
+  const org = (await payload.find({ collection: 'organizations', where: { slug: { equals: 'test-shelter' } }, limit: 1, overrideAccess: true })).docs[0];
+  if (!donor || !org) return;
+  for (const [accountNo, amountByn, status] of [['seed-don-1', 25, 'paid'], ['seed-don-2', 7, 'pending']] as const) {
+    const exists = await payload.find({ collection: 'donations', where: { accountNo: { equals: accountNo } }, limit: 1, overrideAccess: true });
+    if (exists.docs.length) continue;
+    await payload.create({
+      collection: 'donations', overrideAccess: true,
+      data: { donorUser: donor.id, donorEmail: donor.email, amountByn, targetType: 'organization', organization: org.id, status, accountNo, ...(status === 'paid' ? { paidAt: new Date().toISOString() } : {}) },
     });
   }
 }

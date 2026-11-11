@@ -19,6 +19,7 @@ export default async function OrgLayout({ children, params }: { children: React.
         <Link href={base}>Обзор</Link>
         <Link href={`${base}/animals`}>Животные</Link>
         <Link href={`${base}/inquiries`}>Заявки</Link>
+        <Link href={`${base}/donations`}>Пожертвования</Link>
         <Link href={`${base}/settings`}>Настройки</Link>
       </nav>
       {children}
