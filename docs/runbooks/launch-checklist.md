@@ -19,13 +19,14 @@
 
 - [ ] Домен .by + Cloudflare, SSL; домен привязан у BotFather (вход через Telegram).
 - [ ] Секреты в Railway (сервис Petbot), не в git: `PAYLOAD_SECRET`, `DATABASE_URL`, `R2_*`, `RESEND_*`, `EXPRESSPAY_*` (боевые), `TWOFA_ISSUER`, `SUPERADMIN_EMAIL`, `CRON_SECRET`.
-- [ ] 2FA включена у всех moderator и superadmin: войти по email → «Кабинет → Безопасность» → «Настроить 2FA» → сохранить 10 резервных кодов. Затем `/admin` спрашивает код раз в 12 часов.
+- [ ] 2FA включена у всех moderator и superadmin: войти по email → «Кабинет → Безопасность» → «Настроить 2FA» → сохранить 10 резервных кодов. Затем `/admin` спрашивает код раз в 12 часов (каждый код — один раз).
+  - Потерян телефон и коды: `NODE_ENV=production DATABASE_URL=<прод> npm run staff:reset-2fa -- <email>`, затем настроить заново.
 - [ ] `MAINTENANCE_MODE` не задан или `false`. Включить техработы: `MAINTENANCE_MODE=true` в Railway → все, кроме модераторов, видят `/maintenance` (HTTP 503); `/status`, `/api/health`, `/admin` доступны.
 - [x] Бэкап БД — встроенные бэкапы Railway (решение владельца 11.11.2026): расписание weekly у сервиса Postgres (суббота 19:05 UTC, хранение 27 дней), включено 11.11.2026. Проверить: `railway postgres pitr schedule list --service Postgres --json`, `railway postgres pitr backup list --service Postgres --json`.
   - [ ] **тест восстановления** (раз в квартал): Railway → Postgres → Backups → восстановить в отдельный сервис (не поверх рабочей базы!), открыть сайт на нём, удалить сервис.
   - Перед рискованной миграцией — ручной бэкап: `railway postgres pitr backup create --name <имя> --service Postgres`.
   - Запасной путь — копия у другого провайдера: `npm run backup:db` (pg_dump → приватный S3-бакет `R2_BACKUP_BUCKET`), сейчас не используется.
-- [ ] Остальные cron-сервисы Railway (И-22): `npm run cron:reconcile` раз в час, `npm run cron:urgency` раз в сутки.
+- [x] Cron Railway (И-22): функции `cron-reconcile` (каждый час) и `cron-urgency` (03:00 UTC) — в `.railway/railway.ts`, включены 11.11.2026. Журнал: `railway logs --service cron-reconcile`.
 
 ## Мониторинг
 
