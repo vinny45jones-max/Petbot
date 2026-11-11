@@ -1,9 +1,25 @@
-function plural(n: number, forms: [string, string, string]): string {
+// Форматтеры и plural-правила для локали ru-BY. formatByn — канон в lib/payments/amounts.ts.
+export { formatByn } from '@/lib/payments/amounts';
+
+/** CLDR-правило множественного числа для русского. */
+export function pluralRu(count: number, forms: { one: string; few: string; many: string }): string {
+  const n = Math.abs(count);
   const mod10 = n % 10;
   const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return forms[0];
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return forms[1];
-  return forms[2];
+  if (mod10 === 1 && mod100 !== 11) return forms.one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms.few;
+  return forms.many;
+}
+
+const plural = (n: number, [one, few, many]: [string, string, string]) => pluralRu(n, { one, few, many });
+
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('ru-BY').format(value);
+}
+
+export function formatDate(value: Date | string): string {
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return new Intl.DateTimeFormat('ru-BY', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
 }
 
 export function formatAge(years?: number | null, months?: number | null): string {

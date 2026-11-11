@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatAge, formatAnimalTitle } from '@/lib/format';
+import { formatAge, formatAnimalTitle, pluralRu, formatByn, formatNumber, formatDate } from '@/lib/format';
 
 describe('formatAge', () => {
   it('formats years with correct plural', () => {
@@ -28,5 +28,32 @@ describe('formatAnimalTitle', () => {
   });
   it('falls back to number only', () => {
     expect(formatAnimalTitle({ name: null, petNumber: 7 })).toBe('№7');
+  });
+});
+
+describe('pluralRu', () => {
+  const f = { one: 'кот', few: 'кота', many: 'котов' };
+  it.each([
+    [1, 'кот'], [21, 'кот'], [101, 'кот'],
+    [2, 'кота'], [3, 'кота'], [4, 'кота'], [22, 'кота'],
+    [0, 'котов'], [5, 'котов'], [11, 'котов'], [12, 'котов'], [14, 'котов'],
+    [25, 'котов'], [111, 'котов'], [112, 'котов'],
+  ])('%i → %s', (n, expected) => {
+    expect(pluralRu(n, f)).toBe(expected);
+  });
+});
+
+describe('Intl-обёртки (ru-BY)', () => {
+  it('formatByn содержит сумму', () => {
+    const s = formatByn(1234.5);
+    expect(s).toContain('1');
+    expect(s).toContain('234');
+    expect(/[,.]50/.test(s)).toBe(true);
+  });
+  it('formatNumber группирует тысячи', () => {
+    expect(formatNumber(1000000).replace(/\s| | /g, '')).toBe('1000000');
+  });
+  it('formatDate возвращает непустую строку с годом', () => {
+    expect(formatDate('2026-05-29T00:00:00Z')).toContain('2026');
   });
 });

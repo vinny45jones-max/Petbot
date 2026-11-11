@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import Link from 'next/link';
 import '../globals.css';
 import PlausibleProvider from 'next-plausible';
+import { NextIntlClientProvider } from 'next-intl';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CookieBanner } from '@/components/compliance/CookieBanner';
@@ -28,17 +29,19 @@ export default async function AccountLayout({ children }: { children: React.Reac
         <PlausibleProvider domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || 'pet-aggregator.by'} trackOutboundLinks />
       </head>
       <body className={inter.className}>
-        <Header />
-        <div className="mx-auto max-w-6xl px-4 py-6">
-          <nav className="mb-6 flex gap-4 border-b pb-3 text-sm">
-            <Link href="/me" className="font-medium">Кабинет</Link>
-            <Link href="/me/animals">Мои животные</Link>
-            <Link href="/me/inquiries">Мои заявки</Link>
-          </nav>
-          {children}
-        </div>
-        <Footer />
-        <CookieBanner />
+        <NextIntlClientProvider>
+          <Header />
+          <div className="mx-auto max-w-6xl px-4 py-6">
+            <nav className="mb-6 flex gap-4 border-b pb-3 text-sm">
+              <Link href="/me" className="font-medium">Кабинет</Link>
+              <Link href="/me/animals">Мои животные</Link>
+              <Link href="/me/inquiries">Мои заявки</Link>
+            </nav>
+            {children}
+          </div>
+          <Footer />
+          <CookieBanner />
+        </NextIntlClientProvider>
       </body>
     </html>
   );

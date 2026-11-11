@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 import { withPayload } from "@payloadcms/next/withPayload";
 import { withSentryConfig } from "@sentry/nextjs";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
   images: {
@@ -11,7 +14,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(withPayload(nextConfig), {
+export default withSentryConfig(withNextIntl(withPayload(nextConfig)), {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.CI,

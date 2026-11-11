@@ -1,0 +1,31 @@
+{
+  "common": {
+    "help": "Помочь",
+    "adopt": "Взять домой",
+    "submit": "Отправить",
+    "loading": "Загрузка…",
+    "back": "Назад"
+  },
+  "footer": {
+    "aboutSection": "О проекте",
+    "about": "О нас",
+    "howItWorks": "Как это работает",
+    "safety": "Безопасность",
+    "successStories": "Истории успеха",
+    "blog": "Блог",
+    "contacts": "Контакты",
+    "legalSection": "Юридическое",
+    "legal": "Юр.раздел",
+    "privacy": "Политика конфиденциальности",
+    "terms": "Условия использования",
+    "cookie": "Cookie",
+    "helpSection": "Помощь",
+    "faq": "FAQ",
+    "helpCenter": "Справка",
+    "glossary": "Глоссарий",
+    "lostFound": "Потеряны и найдены",
+    "reportCruelty": "Сообщить о жестокости",
+    "contactSection": "Связь",
+    "fontLarger": "Шрифт крупнее"
+  }
+}
