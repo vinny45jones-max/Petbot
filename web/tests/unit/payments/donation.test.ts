@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAccountNo, mapProviderStatus, receiptData } from '@/lib/payments/donation';
+import { buildAccountNo, mapProviderStatus, receiptData, isAccountNo, eripHelpPath } from '@/lib/payments/donation';
 
 describe('donation helpers', () => {
   it('buildAccountNo is prefixed and fits ExpressPay AccountNo (String(30))', () => {
@@ -35,5 +35,17 @@ describe('donation helpers', () => {
     expect(r.amountText).toContain('25');
     expect(r.targetText).toContain('Рекс №12');
     expect(receiptData({ amountByn: 5, targetType: 'general_fund' }).targetText).toBe('в общий фонд');
+  });
+});
+
+describe('ЕРИП: номер заказа для страницы инструкции', () => {
+  it('isAccountNo принимает только наш формат', () => {
+    expect(isAccountNo('don-42')).toBe(true);
+    expect(isAccountNo('don-')).toBe(false);
+    expect(isAccountNo('Позвоните по номеру')).toBe(false);
+    expect(isAccountNo('don-42<script>')).toBe(false);
+  });
+  it('eripHelpPath ведёт на /help/erip/<номер>', () => {
+    expect(eripHelpPath('don-42')).toBe('/help/erip/don-42');
   });
 });

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 import { PRESET_AMOUNTS } from '@/lib/payments/amounts';
+import { eripHelpPath } from '@/lib/payments/donation';
 
 interface Props {
   targetType: 'organization' | 'animal' | 'general_fund';
@@ -16,7 +17,6 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
   const [amount, setAmount] = useState('25');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
-  const [erip, setErip] = useState<string | null>(null);
 
   const title = targetTitle ? <p className="text-gray-600">Помощь: <b>{targetTitle}</b></p> : null;
 
@@ -27,16 +27,6 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
         <div className="rounded-xl border bg-gray-50 p-4 text-gray-700">
           Приём пожертвований скоро заработает. Пока можно помочь, связавшись с приютом напрямую.
         </div>
-      </div>
-    );
-  }
-
-  if (erip) {
-    return (
-      <div className="space-y-2 rounded-xl border p-4">
-        <p className="font-semibold">Счёт создан. Оплатите его в ЕРИП</p>
-        <p>В интернет-банке, банкомате или кассе выберите оплату через ЕРИП и укажите номер заказа:</p>
-        <p className="text-2xl font-bold tracking-wide">{erip}</p>
       </div>
     );
   }
@@ -56,7 +46,7 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
       return;
     }
     if (res?.ok && d.eripNumber) {
-      setErip(d.eripNumber);
+      window.location.href = eripHelpPath(d.eripNumber);
       return;
     }
     setError(d.error ?? 'Не удалось создать платёж. Попробуйте позже.');
