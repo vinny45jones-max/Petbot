@@ -11,6 +11,7 @@ test('«Шрифт крупнее»: цикл масштаба, сохранен
   await expect(html).toHaveAttribute('data-font-scale', 'large');
   await page.getByTestId('font-size-toggle').click();
   await expect(html).toHaveAttribute('data-font-scale', 'xlarge');
+  await expect(page.getByTestId('font-size-status')).toHaveText('Размер шрифта: очень крупный'); // читалке — новый размер
   await page.getByTestId('font-size-toggle').click();
   await expect(html).not.toHaveAttribute('data-font-scale', /.+/);
 });
@@ -65,13 +66,18 @@ test('2FA модератора: без неё нет админки и прав 
   await expect(page.getByText('Для входа в админку модератора нужна двухфакторная аутентификация')).toBeVisible();
   await page.getByRole('button', { name: 'Настроить 2FA' }).click();
   const secret = (await page.getByTestId('totp-secret').textContent())!.trim();
-  await page.getByLabel('Код из приложения').fill(await generate({ secret }));
+  const activationCode = await generate({ secret });
+  await page.getByLabel('Код из приложения').fill(activationCode);
   await page.getByRole('button', { name: 'Подтвердить' }).click();
   await expect(page.getByTestId('recovery-codes').locator('li')).toHaveCount(10);
 
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/2fa/);
-  await page.getByLabel('Код подтверждения').fill(await generate({ secret }));
+  // код, которым включали 2FA, повторно не принимается (И-27) — берём код следующего шага (допуск ±30 с)
+  await page.getByLabel('Код подтверждения').fill(activationCode);
+  await page.getByRole('button', { name: 'Подтвердить' }).click();
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
+  await page.getByLabel('Код подтверждения').fill(await generate({ secret, epoch: Date.now() / 1000 + 30 }));
   await page.getByRole('button', { name: 'Подтвердить' }).click();
   await expect(page).toHaveURL(/\/admin(\/)?$/, { timeout: 15_000 });
   await expect(page).not.toHaveURL(/unauthorized|login/);

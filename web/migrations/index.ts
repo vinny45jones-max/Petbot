@@ -9,6 +9,7 @@ import * as migration_20261110_202716_urgency_announce from './20261110_202716_u
 import * as migration_20261111_074019_donations from './20261111_074019_donations';
 import * as migration_20261111_104430_donations_card_provider from './20261111_104430_donations_card_provider';
 import * as migration_20261111_123854_users_totp from './20261111_123854_users_totp';
+import * as migration_20261111_180946_users_totp_last_step from './20261111_180946_users_totp_last_step';
 
 export const migrations = [
   {
@@ -64,6 +65,11 @@ export const migrations = [
   {
     up: migration_20261111_123854_users_totp.up,
     down: migration_20261111_123854_users_totp.down,
-    name: '20261111_123854_users_totp'
+    name: '20261111_123854_users_totp',
+  },
+  {
+    up: migration_20261111_180946_users_totp_last_step.up,
+    down: migration_20261111_180946_users_totp_last_step.down,
+    name: '20261111_180946_users_totp_last_step'
   },
 ];

@@ -5,7 +5,7 @@ import config from '@payload-config';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import type { User } from '@/payload-types';
 
-const STATUS: Record<string, number> = { no_session: 401, rate_limited: 429, already_enabled: 409, not_enrolled: 400, invalid_code: 400 };
+const STATUS: Record<string, number> = { no_session: 401, not_staff: 403, rate_limited: 429, already_enabled: 409, not_enrolled: 400, invalid_code: 400 };
 
 export function twofaError(error: string) {
   return NextResponse.json({ error }, { status: STATUS[error] ?? 400 });

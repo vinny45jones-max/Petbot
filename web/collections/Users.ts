@@ -98,6 +98,8 @@ export const Users: CollectionConfig = {
     },
     { name: 'totpSecretEnc', type: 'text', hidden: true, access: { read: () => false, create: () => false, update: () => false } },
     { name: 'totpRecoveryHashes', type: 'json', hidden: true, access: { read: () => false, create: () => false, update: () => false } },
+    // шаг времени последнего принятого TOTP-кода: повторно тот же код не принимается (lib/auth/twofa.ts)
+    { name: 'totpLastStep', type: 'number', hidden: true, access: { read: () => false, create: () => false, update: () => false } },
     {
       name: 'organizations',
       type: 'join',

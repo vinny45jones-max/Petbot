@@ -10,14 +10,18 @@ export function buildOtpauthUrl(account: string, secret: string, issuer = proces
   return generateURI({ issuer, label: account, secret });
 }
 
-/** ±30с на рассинхрон часов телефона. */
-export async function verifyTotp(secret: string, token: string): Promise<boolean> {
+/**
+ * ±30с на рассинхрон часов телефона. Возвращает шаг времени принятого кода (его сохраняют, чтобы код нельзя было
+ * ввести повторно) или null. afterTimeStep — последний использованный шаг: он и более ранние отклоняются.
+ */
+export async function verifyTotp(secret: string, token: string, afterTimeStep?: number | null): Promise<number | null> {
   const t = token.trim();
-  if (!/^\d{6}$/.test(t)) return false;
+  if (!/^\d{6}$/.test(t)) return null;
   try {
-    return (await verify({ secret, token: t, epochTolerance: 30 })).valid;
+    const r = await verify({ secret, token: t, epochTolerance: 30, ...(afterTimeStep != null ? { afterTimeStep } : {}) });
+    return r.valid && 'timeStep' in r ? r.timeStep : null;
   } catch {
-    return false;
+    return null;
   }
 }
 

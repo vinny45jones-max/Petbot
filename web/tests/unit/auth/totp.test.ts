@@ -13,19 +13,26 @@ describe('totp', () => {
   it('verifyTotp принимает валидный код и отклоняет мусор', async () => {
     const secret = generateTotpSecret();
     const token = await generate({ secret });
-    expect(await verifyTotp(secret, token)).toBe(true);
-    expect(await verifyTotp(secret, ` ${token} `)).toBe(true);
-    expect(await verifyTotp(secret, 'abc')).toBe(false);
-    expect(await verifyTotp(secret, '')).toBe(false);
+    expect(await verifyTotp(secret, token)).toBe(Math.floor(Date.now() / 30_000));
+    expect(await verifyTotp(secret, ` ${token} `)).not.toBeNull();
+    expect(await verifyTotp(secret, 'abc')).toBeNull();
+    expect(await verifyTotp(secret, '')).toBeNull();
+  });
+  it('verifyTotp: код с уже использованным шагом отклоняется (повтор)', async () => {
+    const secret = generateTotpSecret();
+    const step = await verifyTotp(secret, await generate({ secret }));
+    expect(step).not.toBeNull();
+    expect(await verifyTotp(secret, await generate({ secret }), step)).toBeNull();
+    expect(await verifyTotp(secret, await generate({ secret, epoch: Date.now() / 1000 + 30 }), step)).toBe(step! + 1);
   });
   it('verifyTotp: допуск ±30с, но не код из прошлого часа', async () => {
     const secret = generateTotpSecret();
     const now = Date.now() / 1000;
-    expect(await verifyTotp(secret, await generate({ secret, epoch: now - 30 }))).toBe(true);
-    expect(await verifyTotp(secret, await generate({ secret, epoch: now - 3600 }))).toBe(false);
+    expect(await verifyTotp(secret, await generate({ secret, epoch: now - 30 }))).not.toBeNull();
+    expect(await verifyTotp(secret, await generate({ secret, epoch: now - 3600 }))).toBeNull();
   });
   it('verifyTotp на битом секрете → false, без исключения', async () => {
-    expect(await verifyTotp('!!!', '123456')).toBe(false);
+    expect(await verifyTotp('!!!', '123456')).toBeNull();
   });
   it('buildOtpauthUrl содержит issuer и аккаунт', () => {
     const url = buildOtpauthUrl('mod@pet.by', 'JBSWY3DPEHPK3PXP', 'PetAggregator');

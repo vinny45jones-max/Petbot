@@ -21,6 +21,7 @@
     "cron:reconcile": "node scripts/cron-reconcile.ts",
     "backup:db": "node scripts/backup-db.ts",
     "staff:create": "node scripts/create-staff.ts",
+    "staff:reset-2fa": "node scripts/reset-staff-2fa.ts",
     "ci:local": "bash scripts/ci-local.sh",
     "migrate": "payload migrate --disable-transpile",
     "migrate:create": "node scripts/migrate-create.ts"
