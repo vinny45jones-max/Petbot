@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { TurnstileWidget } from '@/components/security/TurnstileWidget';
 import { PRESET_AMOUNTS } from '@/lib/payments/amounts';
 import { eripHelpPath } from '@/lib/payments/donation';
+import { navigate } from '@/lib/navigate';
 
 interface Props {
   targetType: 'organization' | 'animal' | 'general_fund';
@@ -42,11 +43,11 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
     const res = await fetch('/api/donations/expresspay', { method: 'POST', body: fd }).catch(() => null);
     const d = res ? await res.json().catch(() => ({})) : {};
     if (res?.ok && d.paymentUrl) {
-      window.location.href = d.paymentUrl;
+      navigate(d.paymentUrl);
       return;
     }
     if (res?.ok && d.eripNumber) {
-      window.location.href = eripHelpPath(d.eripNumber);
+      navigate(eripHelpPath(d.eripNumber));
       return;
     }
     setError(d.error ?? 'Не удалось создать платёж. Попробуйте позже.');
