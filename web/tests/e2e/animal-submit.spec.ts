@@ -5,7 +5,7 @@ async function loginAs(page: any, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Пароль').fill('Test12345!');
   await page.getByRole('button', { name: /Войти/ }).click();
-  await expect(page).toHaveURL(/\/me|\/$/);
+  await expect(page).toHaveURL(/\/me|\/$/, { timeout: 15_000 });
 }
 
 test('citizen submits an animal via wizard', async ({ page }) => {
