@@ -4,6 +4,7 @@ import Link from 'next/link';
 import '../globals.css';
 import PlausibleProvider from 'next-plausible';
 import { NextIntlClientProvider } from 'next-intl';
+import { FONT_SCALE_INIT_SCRIPT } from '@/lib/a11y/font-scale';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CookieBanner } from '@/components/compliance/CookieBanner';
@@ -24,8 +25,9 @@ export const dynamic = 'force-dynamic';
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   await requireUser();
   return (
-    <html lang="ru-BY">
+    <html lang="ru-BY" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: FONT_SCALE_INIT_SCRIPT }} />
         <PlausibleProvider domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN || 'pet-aggregator.by'} trackOutboundLinks />
       </head>
       <body className={inter.className}>

@@ -128,3 +128,6 @@
     @apply font-sans;
   }
 }
+/* «Шрифт крупнее» (§16.2): атрибут ставит FONT_SCALE_INIT_SCRIPT до отрисовки. */
+html[data-font-scale="large"] { font-size: 18px; }
+html[data-font-scale="xlarge"] { font-size: 20px; }

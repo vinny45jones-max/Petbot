@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
+import { FontSizeToggle } from '@/components/a11y/FontSizeToggle';
 
 export async function Footer() {
   const t = await getTranslations('footer');
@@ -39,6 +40,7 @@ export async function Footer() {
         <div>
           <h2 className="font-semibold mb-2">{t('contactSection')}</h2>
           <p>info@pet-aggregator.by</p>
+          <p className="mt-3"><FontSizeToggle /></p>
         </div>
       </div>
     </footer>
