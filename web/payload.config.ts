@@ -23,6 +23,7 @@ import { BlogPosts } from './collections/BlogPosts.ts';
 import { LegalArticles } from './collections/LegalArticles.ts';
 import { HelpArticles } from './collections/HelpArticles.ts';
 import { GlossaryTerms } from './collections/GlossaryTerms.ts';
+import { Donations } from './collections/Donations.ts';
 import { s3Storage } from '@payloadcms/storage-s3';
 import { resendAdapter } from '@payloadcms/email-resend';
 import { buildR2StorageConfig, type R2Env } from './lib/storage/r2-adapter.ts';
@@ -40,7 +41,7 @@ export default buildConfig({
     user: 'users',
     meta: { titleSuffix: ' — Pet Aggregator BY Admin' },
   },
-  collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals, AdoptionInquiries, Comments, ReportFlags, CrueltyReports, PartnerApplications, BlogPosts, LegalArticles, HelpArticles, GlossaryTerms],
+  collections: [Users, Cities, Media, AuditLogs, NotificationPreferences, MagicLinkTokens, Organizations, IntakeFacilities, Animals, AdoptionInquiries, Comments, ReportFlags, CrueltyReports, PartnerApplications, BlogPosts, LegalArticles, HelpArticles, GlossaryTerms, Donations],
   plugins: r2Plugins,
   email: process.env.RESEND_API_KEY
     ? resendAdapter({

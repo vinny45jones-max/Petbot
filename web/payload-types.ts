@@ -85,6 +85,7 @@ export interface Config {
     'legal-articles': LegalArticle;
     'help-articles': HelpArticle;
     'glossary-terms': GlossaryTerm;
+    donations: Donation;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -114,6 +115,7 @@ export interface Config {
     'legal-articles': LegalArticlesSelect<false> | LegalArticlesSelect<true>;
     'help-articles': HelpArticlesSelect<false> | HelpArticlesSelect<true>;
     'glossary-terms': GlossaryTermsSelect<false> | GlossaryTermsSelect<true>;
+    donations: DonationsSelect<false> | DonationsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -722,6 +724,42 @@ export interface GlossaryTerm {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "donations".
+ */
+export interface Donation {
+  id: number;
+  /**
+   * null для гостевых донатов
+   */
+  donorUser?: (number | null) | User;
+  donorEmail?: string | null;
+  donorPhone?: string | null;
+  donorName?: string | null;
+  amountByn: number;
+  currency?: string | null;
+  targetType: 'organization' | 'animal' | 'general_fund';
+  organization?: (number | null) | Organization;
+  animal?: (number | null) | Animal;
+  /**
+   * Корм / лечение / общее
+   */
+  purpose?: string | null;
+  paymentProvider?: ('expresspay_erip' | 'bank_transfer_manual') | null;
+  /**
+   * Номер счёта ExpressPay (InvoiceNo / CardInvoiceNo)
+   */
+  providerInvoiceId?: string | null;
+  /**
+   * Наш номер заказа (AccountNo в ExpressPay) — по нему webhook находит донат
+   */
+  accountNo?: string | null;
+  status: 'pending' | 'paid' | 'failed' | 'refunded';
+  paidAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -815,6 +853,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'glossary-terms';
         value: number | GlossaryTerm;
+      } | null)
+    | ({
+        relationTo: 'donations';
+        value: number | Donation;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -1217,6 +1259,29 @@ export interface GlossaryTermsSelect<T extends boolean = true> {
   term?: T;
   slug?: T;
   definition?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "donations_select".
+ */
+export interface DonationsSelect<T extends boolean = true> {
+  donorUser?: T;
+  donorEmail?: T;
+  donorPhone?: T;
+  donorName?: T;
+  amountByn?: T;
+  currency?: T;
+  targetType?: T;
+  organization?: T;
+  animal?: T;
+  purpose?: T;
+  paymentProvider?: T;
+  providerInvoiceId?: T;
+  accountNo?: T;
+  status?: T;
+  paidAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
