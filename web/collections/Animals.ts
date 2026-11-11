@@ -170,10 +170,10 @@ export const Animals: CollectionConfig = {
 
           if (becamePublished) {
             const { notifyAnimalPublished } = await import('../lib/notify/dispatch.ts');
-            const { animalUrl } = await import('../lib/animal-url.ts');
+            const { animalUrl, resolveAnimalCity } = await import('../lib/animal-url.ts');
             const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-            // нужен populated city для URL; берём slug если есть, иначе by
-            const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city: typeof doc.city === 'object' ? doc.city : null })}`;
+            const city = await resolveAnimalCity(doc.city, (id) => req.payload.findByID({ collection: 'cities', id, depth: 0 }) as any);
+            const url = `${base}${animalUrl({ slug: doc.slug, species: doc.species, city })}`;
             await notifyAnimalPublished(ownerEmail, title, url);
           } else if (becameRejected) {
             // §16.7 «Объявление отклонено»: причину модератор может положить в moderationNote (если поле есть)
@@ -190,10 +190,8 @@ export const Animals: CollectionConfig = {
         if (!process.env.INDEXNOW_KEY) return;
         try {
           const { pingIndexNow } = await import('../lib/seo/indexnow.ts');
-          const { animalUrl } = await import('../lib/animal-url.ts');
-          // в afterChange city — id, а в URL карточки нужен slug города
-          const city = typeof doc.city === 'object' ? doc.city
-            : doc.city ? await req.payload.findByID({ collection: 'cities', id: doc.city, depth: 0 }).catch(() => null) : null;
+          const { animalUrl, resolveAnimalCity } = await import('../lib/animal-url.ts');
+          const city = await resolveAnimalCity(doc.city, (id) => req.payload.findByID({ collection: 'cities', id, depth: 0 }) as any);
           await pingIndexNow([animalUrl({ slug: doc.slug, species: doc.species, city })]);
         } catch (e) {
           console.error('[animals.afterChange] indexnow failed (non-fatal)', e);
