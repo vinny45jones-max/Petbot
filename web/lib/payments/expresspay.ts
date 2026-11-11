@@ -1,5 +1,5 @@
 import { toProviderAmount } from './amounts.ts';
-import { mapProviderStatus, type DonationStatus } from './donation.ts';
+import { mapProviderStatus, type DonationStatus, type InvoiceKind } from './donation.ts';
 import { computeSignature } from './expresspay-signature.ts';
 
 // API: https://express-pay.by/docs/api/v1 (сверено 11.11.2026)
@@ -36,6 +36,11 @@ export function configFromEnv(): ExpressPayConfig {
   };
 }
 
+/** Тип счёта для нового доната и значение paymentProvider, под которым он хранится. */
+export const kindFromConfig = (cfg: ExpressPayConfig): InvoiceKind => (cfg.useCard ? 'card' : 'erip');
+export const providerFromKind = (kind: InvoiceKind) => (kind === 'card' ? 'expresspay_card' : 'expresspay_erip');
+export const kindFromProvider = (provider: string | null | undefined): InvoiceKind => (provider === 'expresspay_card' ? 'card' : 'erip');
+
 /** Приём донатов включён, только когда задан токен ExpressPay. */
 export function isDonationsEnabled(cfg: ExpressPayConfig = configFromEnv()): boolean {
   return Boolean(cfg.token);
@@ -70,17 +75,20 @@ export async function createInvoice(input: CreateInvoiceInput, cfg: ExpressPayCo
   const amount = toProviderAmount(input.amount);
   const info = input.info;
 
+  const now = (input.now ?? new Date()).getTime();
   if (!cfg.useCard) {
+    // срок неделя: брошенный счёт не висит в ЕРИП вечно (сверка закрывает такие донаты)
+    const expiration = yyyymmdd(new Date(now + 7 * 24 * 3600 * 1000));
     // подпись: token, accountno, amount, currency, expiration, info, …(не передаём)
-    const data = await call(doFetch, url(cfg, 'invoices', [cfg.token, input.accountNo, amount, BYN, '', info]),
-      form({ AccountNo: input.accountNo, Amount: amount, Currency: BYN, Info: info }));
+    const data = await call(doFetch, url(cfg, 'invoices', [cfg.token, input.accountNo, amount, BYN, expiration, info]),
+      form({ AccountNo: input.accountNo, Amount: amount, Currency: BYN, Expiration: expiration, Info: info }));
     const invoiceId = String(data.InvoiceNo ?? '');
     if (!invoiceId) throw new Error('ExpressPay: no InvoiceNo in response');
     return { invoiceId, paymentUrl: data.InvoiceUrl ?? null, eripNumber: input.accountNo };
   }
 
   // карта: счёт живёт сутки
-  const expiration = yyyymmdd(new Date((input.now ?? new Date()).getTime() + 24 * 3600 * 1000));
+  const expiration = yyyymmdd(new Date(now + 24 * 3600 * 1000));
   const returnUrl = input.returnUrl ?? '';
   const failUrl = input.failUrl ?? '';
   // подпись: token, accountno, expiration, amount, currency, info, returnurl, failurl, language, …
@@ -94,9 +102,10 @@ export async function createInvoice(input: CreateInvoiceInput, cfg: ExpressPayCo
   return { invoiceId, paymentUrl: payment.FormUrl, eripNumber: null };
 }
 
-export async function getInvoiceStatus(invoiceId: string, cfg: ExpressPayConfig, doFetch: FetchFn = fetch): Promise<DonationStatus> {
+/** kind — тип счёта, сохранённый в донате; без него — по текущим настройкам. */
+export async function getInvoiceStatus(invoiceId: string, cfg: ExpressPayConfig, doFetch: FetchFn = fetch, kind: InvoiceKind = kindFromConfig(cfg)): Promise<DonationStatus> {
   const id = encodeURIComponent(invoiceId);
-  if (cfg.useCard) {
+  if (kind === 'card') {
     const data = await call(doFetch, url(cfg, `cardinvoices/${id}/status`, [cfg.token, invoiceId, '']), { method: 'GET' });
     return mapProviderStatus(data.CardInvoiceStatus, 'card');
   }

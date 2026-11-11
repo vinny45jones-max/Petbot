@@ -3,7 +3,7 @@ import { getPayload } from 'payload';
 import config from '@payload-config';
 import { verifyTurnstile } from '@/lib/security/turnstile';
 import { checkRateLimit, clientIp } from '@/lib/security/rate-limit';
-import { configFromEnv, createInvoice, isDonationsEnabled } from '@/lib/payments/expresspay';
+import { configFromEnv, createInvoice, isDonationsEnabled, kindFromConfig } from '@/lib/payments/expresspay';
 import { startDonation } from '@/lib/payments/start-donation';
 import { getCurrentUser } from '@/lib/auth/current-user';
 
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     },
     {
       enabled: true,
+      invoiceKind: kindFromConfig(cfg),
       baseUrl: process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
       findAnimal: (slug) => one('animals', slug),
       findOrganization: (slug) => one('organizations', slug),

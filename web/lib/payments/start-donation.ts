@@ -1,6 +1,7 @@
 import { parseAmount } from './amounts.ts';
 import { buildAccountNo } from './donation.ts';
-import type { CreateInvoiceInput, CreatedInvoice } from './expresspay.ts';
+import { providerFromKind, type CreateInvoiceInput, type CreatedInvoice } from './expresspay.ts';
+import type { InvoiceKind } from './donation.ts';
 import { formatAnimalTitle } from '../format.ts';
 
 export interface StartDonationInput {
@@ -16,6 +17,7 @@ export interface StartDonationInput {
 
 export interface StartDonationDeps {
   enabled: boolean;
+  invoiceKind: InvoiceKind;
   baseUrl: string;
   findAnimal: (slug: string) => Promise<{ id: string | number; name?: string | null; petNumber?: number | null; status?: string } | null>;
   findOrganization: (slug: string) => Promise<{ id: string | number; name: string; isPublished?: boolean | null } | null>;
@@ -65,7 +67,7 @@ export async function startDonation(input: StartDonationInput, deps: StartDonati
     organization,
     animal,
     purpose: input.purpose?.slice(0, 100) || undefined,
-    paymentProvider: 'expresspay_erip',
+    paymentProvider: providerFromKind(deps.invoiceKind),
     status: 'pending',
   });
 

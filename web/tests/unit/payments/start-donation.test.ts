@@ -6,6 +6,7 @@ function deps(over: Partial<StartDonationDeps> = {}): StartDonationDeps & { db: 
   return {
     db,
     enabled: true,
+    invoiceKind: 'card',
     baseUrl: 'https://site.by',
     findAnimal: vi.fn(async (slug: string) => (slug === 'rex' ? { id: 12, name: 'Рекс', petNumber: 12, status: 'published' } : slug === 'draft' ? { id: 13, petNumber: 13, status: 'pending_review' } : null)),
     findOrganization: vi.fn(async (slug: string) => (slug === 'shelter' ? { id: 3, name: 'Приют', isPublished: true } : null)),
@@ -36,10 +37,13 @@ describe('startDonation', () => {
     const d = deps();
     const r = await startDonation(base, d);
     expect(r).toEqual({ status: 200, body: { ok: true, paymentUrl: 'https://pay/555', eripNumber: null, donationId: 1 } });
-    expect(d.createDonation).toHaveBeenCalledWith(expect.objectContaining({ amountByn: 25, targetType: 'animal', animal: 12, donorUser: 7, status: 'pending' }));
+    expect(d.createDonation).toHaveBeenCalledWith(expect.objectContaining({ amountByn: 25, targetType: 'animal', animal: 12, donorUser: 7, status: 'pending', paymentProvider: 'expresspay_card' }));
     expect((d.createDonation as any).mock.calls[0][0]).not.toHaveProperty('accountNo');
     expect(d.createInvoice).toHaveBeenCalledWith(expect.objectContaining({ amount: 25, accountNo: 'don-1', info: 'Помощь: Рекс №12', returnUrl: 'https://site.by/help/thanks', failUrl: 'https://site.by/help/failed' }));
     expect(d.db[0]).toMatchObject({ accountNo: 'don-1', providerInvoiceId: '555', status: 'pending' });
+    const e = deps({ invoiceKind: 'erip' } as any);
+    await startDonation(base, e);
+    expect(e.db[0].paymentProvider).toBe('expresspay_erip');
   });
   it('общий фонд не требует slug', async () => {
     const d = deps();

@@ -38,7 +38,7 @@ describe('handleNotification (webhook ExpressPay)', () => {
   it('статус сверяется у провайдера по НАШЕМУ номеру счёта, не по телу', async () => {
     const d = deps({ id: 1, status: 'pending', providerInvoiceId: '555' });
     await handleNotification({ data: data({ InvoiceNo: 999 }), signature: '' }, d);
-    expect(d.confirmStatus).toHaveBeenCalledWith('555');
+    expect(d.confirmStatus).toHaveBeenCalledWith('555', 'erip');
   });
   it('уже оплачен → идемпотентно: провайдер не опрашивается, второй чек не уходит', async () => {
     const d = deps({ id: 1, status: 'paid', providerInvoiceId: '555' });
@@ -50,6 +50,16 @@ describe('handleNotification (webhook ExpressPay)', () => {
     const d = deps({ id: 1, status: 'paid', providerInvoiceId: '555' }, { confirmStatus: vi.fn(async () => 'refunded' as const) });
     await handleNotification({ data: data({ CmdType: 3, Status: 7 }), signature: '' }, d);
     expect(d.setStatus).toHaveBeenCalledWith(1, 'refunded');
+  });
+  it('онлайн-возврат (CmdType 11) оплаченного → сверяем и ставим refunded', async () => {
+    const d = deps({ id: 1, status: 'paid', providerInvoiceId: '555' }, { confirmStatus: vi.fn(async () => 'refunded' as const) });
+    await handleNotification({ data: data({ CmdType: 11 }), signature: '' }, d);
+    expect(d.setStatus).toHaveBeenCalledWith(1, 'refunded');
+  });
+  it('тип счёта берётся из доната, не из текущих настроек', async () => {
+    const d = deps({ id: 1, status: 'pending', providerInvoiceId: '555', paymentProvider: 'expresspay_card' });
+    await handleNotification({ data: data({}), signature: '' }, d);
+    expect(d.confirmStatus).toHaveBeenCalledWith('555', 'card');
   });
   it('провайдер недоступен → 503, не финализируем (защита от подделки)', async () => {
     const d = deps({ id: 1, status: 'pending', providerInvoiceId: '555' }, { confirmStatus: vi.fn(async () => { throw new Error('down'); }) });

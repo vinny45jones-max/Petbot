@@ -10,7 +10,7 @@ function fakePayload(doc: any) {
 }
 
 describe('finalizeDonationPaid', () => {
-  it('ставит paid + paidAt, шлёт чек донору с суммой и целью, пишет аудит', async () => {
+  it('ставит paid + paidAt, шлёт чек донору с суммой и целью, аудит — хук коллекции', async () => {
     const doc = { id: 1, status: 'pending', amountByn: 25, targetType: 'animal', animal: { name: 'Рекс', petNumber: 12 }, donorEmail: 'a@x', donorName: 'Аня' };
     const p = fakePayload(doc);
     const send = vi.fn(async () => {});
@@ -19,7 +19,6 @@ describe('finalizeDonationPaid', () => {
     expect((doc as any).paidAt).toBeTruthy();
     expect(send).toHaveBeenCalledOnce();
     expect((send.mock.calls[0] as any)[0]).toMatchObject({ to: 'a@x', subject: 'Чек о пожертвовании' });
-    expect(p.create).toHaveBeenCalledWith(expect.objectContaining({ collection: 'audit-logs' }));
   });
   it('уже paid → ничего не делает (повторная доставка)', async () => {
     const p = fakePayload({ id: 1, status: 'paid', amountByn: 25, targetType: 'general_fund', donorEmail: 'a@x' });

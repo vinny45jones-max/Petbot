@@ -15,6 +15,8 @@ describe('amounts', () => {
     expect(parseAmount('-5').ok).toBe(false);
     expect(parseAmount('abc').ok).toBe(false);
     expect(parseAmount('1000000').ok).toBe(false);
+    expect(parseAmount('0,99')).toEqual({ ok: false, error: 'Минимальная сумма — 1 BYN' });
+    expect(parseAmount('1').ok).toBe(true);
   });
   it('formats BYN', () => {
     expect(formatByn(25)).toContain('25');

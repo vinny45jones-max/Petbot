@@ -1,4 +1,5 @@
 export const PRESET_AMOUNTS = [10, 25, 50, 100] as const;
+export const MIN_AMOUNT = 1;
 export const MAX_AMOUNT = 100_000;
 
 export type ParseResult = { ok: true; value: number } | { ok: false; error: string };
@@ -9,6 +10,7 @@ export function parseAmount(raw: string): ParseResult {
   if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return { ok: false, error: 'Введите сумму числом (до 2 знаков после запятой)' };
   const n = Number(normalized);
   if (!Number.isFinite(n) || n <= 0) return { ok: false, error: 'Сумма должна быть больше нуля' };
+  if (n < MIN_AMOUNT) return { ok: false, error: 'Минимальная сумма — 1 BYN' };
   if (n > MAX_AMOUNT) return { ok: false, error: 'Слишком большая сумма' };
   return { ok: true, value: Math.round(n * 100) / 100 };
 }

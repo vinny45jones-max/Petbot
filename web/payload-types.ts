@@ -744,7 +744,7 @@ export interface Donation {
    * Корм / лечение / общее
    */
   purpose?: string | null;
-  paymentProvider?: ('expresspay_erip' | 'bank_transfer_manual') | null;
+  paymentProvider?: ('expresspay_erip' | 'expresspay_card' | 'bank_transfer_manual') | null;
   /**
    * Номер счёта ExpressPay (InvoiceNo / CardInvoiceNo)
    */

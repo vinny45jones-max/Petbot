@@ -1,7 +1,6 @@
 import type { Payload } from 'payload';
 import { receiptData } from './donation.ts';
 import { formatAnimalTitle } from '../format.ts';
-import { recordAuditLog } from '../audit/log.ts';
 
 type Send = (args: { to: string; subject: string; react: any }) => Promise<unknown>;
 
@@ -11,7 +10,7 @@ async function defaultSend(args: Parameters<Send>[0]) {
 }
 
 /**
- * Донат оплачен: статус + paidAt, чек донору, аудит. Общая точка для webhook и сверки (cron).
+ * Донат оплачен: статус + paidAt, чек донору (аудит пишет хук коллекции). Общая точка для webhook и сверки (cron).
  * Повторный вызов для уже оплаченного — ничего не делает (повторная доставка уведомления).
  */
 export async function finalizeDonationPaid(payload: Payload, donationId: string | number, send: Send = defaultSend): Promise<void> {
@@ -30,6 +29,4 @@ export async function finalizeDonationPaid(payload: Payload, donationId: string 
       console.error('[donation] receipt email failed (non-fatal)', e);
     }
   }
-  await recordAuditLog(payload, { action: 'donation_paid', targetType: 'donation', targetId: String(donationId), meta: { amount: d.amountByn } })
-    .catch((e) => console.error('[donation] audit failed (non-fatal)', e));
 }

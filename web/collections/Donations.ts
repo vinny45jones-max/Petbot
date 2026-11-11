@@ -1,5 +1,8 @@
 import type { CollectionConfig } from 'payload';
-import { isAdmin } from '../lib/auth/rbac.ts';
+import { recordAuditLog } from '../lib/audit/log.ts';
+
+// Спека §5: деньги и контакты доноров — только superadmin (модератор контента сюда не допускается)
+const isSuperadmin = (user: any) => user?.role === 'superadmin';
 
 export const Donations: CollectionConfig = {
   slug: 'donations',
@@ -7,14 +10,29 @@ export const Donations: CollectionConfig = {
   admin: { useAsTitle: 'id', defaultColumns: ['amountByn', 'targetType', 'status', 'createdAt'] },
   access: {
     // пишет только сервер (Local API, overrideAccess); агрегаты считаются через overrideAccess
-    create: ({ req: { user } }) => isAdmin(user as any),
+    create: ({ req: { user } }) => isSuperadmin(user),
     read: ({ req: { user } }) => {
-      if (isAdmin(user as any)) return true;
+      if (isSuperadmin(user)) return true;
       if (!user) return false;
       return { donorUser: { equals: user.id } };
     },
-    update: ({ req: { user } }) => isAdmin(user as any),
-    delete: ({ req: { user } }) => isAdmin(user as any),
+    update: ({ req: { user } }) => isSuperadmin(user),
+    delete: ({ req: { user } }) => isSuperadmin(user),
+  },
+  hooks: {
+    // любая смена статуса (webhook, сверка, ручная правка в админке) — в аудит, с автором если есть
+    afterChange: [
+      async ({ doc, previousDoc, operation, req }) => {
+        if (operation !== 'update' || !previousDoc || previousDoc.status === doc.status) return;
+        await recordAuditLog(req.payload, {
+          actorId: req.user?.id as number | undefined,
+          action: `donation_status:${previousDoc.status}→${doc.status}`,
+          targetType: 'donation',
+          targetId: String(doc.id),
+          meta: { amount: doc.amountByn },
+        }).catch((e) => console.error('[donations] audit failed (non-fatal)', e));
+      },
+    ],
   },
   fields: [
     { name: 'donorUser', type: 'relationship', relationTo: 'users', index: true, admin: { description: 'null для гостевых донатов' } },
@@ -36,6 +54,7 @@ export const Donations: CollectionConfig = {
     {
       name: 'paymentProvider', type: 'select', defaultValue: 'expresspay_erip', options: [
         { label: 'ExpressPay (ЕРИП)', value: 'expresspay_erip' },
+        { label: 'ExpressPay (карта)', value: 'expresspay_card' },
         { label: 'Банковский перевод (вручную)', value: 'bank_transfer_manual' },
       ],
     },

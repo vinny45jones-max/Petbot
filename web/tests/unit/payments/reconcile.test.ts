@@ -6,7 +6,7 @@ const NOW = new Date('2026-11-11T12:00:00Z');
 function deps(statuses: Record<string, string | Error>, over: Partial<ReconcileDeps> = {}) {
   return {
     now: NOW,
-    findStalePending: vi.fn(async () => Object.keys(statuses).map((inv, i) => ({ id: i + 1, providerInvoiceId: inv }))),
+    findStalePending: vi.fn(async () => Object.keys(statuses).map((inv, i) => ({ id: i + 1, providerInvoiceId: inv, kind: 'erip' as const, createdAt: '2026-11-11T11:00:00Z' }))),
     confirmStatus: vi.fn(async (inv: string) => { const s = statuses[inv]; if (s instanceof Error) throw s; return s as any; }),
     finalizePaid: vi.fn(async () => {}),
     setStatus: vi.fn(async () => {}),
@@ -19,7 +19,7 @@ describe('runReconcile (сверка зависших донатов)', () => {
   it('ищет только pending старше 15 минут', async () => {
     const d = deps({});
     await runReconcile(d);
-    expect(d.findStalePending).toHaveBeenCalledWith(new Date('2026-11-11T11:45:00Z'));
+    expect(d.findStalePending).toHaveBeenCalledWith(new Date('2026-11-11T11:45:00Z'), 100);
   });
   it('paid → финализация (тот же чек, что у webhook); failed/refunded → статус; pending и ошибки — остаются', async () => {
     const d = deps({ a: 'paid', b: 'failed', c: 'refunded', e: 'pending', f: new Error('down') });
@@ -28,6 +28,19 @@ describe('runReconcile (сверка зависших донатов)', () => {
     expect(d.finalizePaid).toHaveBeenCalledWith(1);
     expect(d.setStatus).toHaveBeenCalledWith(2, 'failed');
     expect(d.setStatus).toHaveBeenCalledWith(3, 'refunded');
+  });
+  it('тип счёта передаётся из доната', async () => {
+    const d = deps({ a: 'paid' });
+    await runReconcile(d);
+    expect(d.confirmStatus).toHaveBeenCalledWith('a', 'erip');
+  });
+  it('брошенный счёт старше 7 дней, всё ещё ждущий, закрывается как failed', async () => {
+    const d = deps({}, {
+      findStalePending: vi.fn(async () => [{ id: 9, providerInvoiceId: 'old', kind: 'card' as const, createdAt: '2026-11-03T12:00:00Z' }]),
+      confirmStatus: vi.fn(async () => 'pending' as const),
+    });
+    expect(await runReconcile(d)).toEqual({ fixed: 0, failed: 1, stillPending: 0 });
+    expect(d.setStatus).toHaveBeenCalledWith(9, 'failed');
   });
   it('отчёт админу только когда что-то поменялось', async () => {
     const quiet = deps({ e: 'pending' });

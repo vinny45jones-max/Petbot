@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPayload } from 'payload';
 import config from '@/payload.config';
 import { isCronAuthorized } from '@/lib/security/cron-auth';
-import { configFromEnv, getInvoiceStatus, isDonationsEnabled } from '@/lib/payments/expresspay';
+import { configFromEnv, getInvoiceStatus, isDonationsEnabled, kindFromProvider } from '@/lib/payments/expresspay';
 import { finalizeDonationPaid } from '@/lib/payments/finalize-paid';
 import { runReconcile } from '@/lib/payments/reconcile';
 import { sendEmail } from '@/lib/email/resend-client';
@@ -23,15 +23,15 @@ export async function POST(req: Request) {
   const payload = await getPayload({ config });
   const result = await runReconcile({
     now: new Date(),
-    findStalePending: async (before) => {
+    findStalePending: async (before, limit) => {
       const res = await payload.find({
-        collection: 'donations', overrideAccess: true, depth: 0, pagination: false,
-        select: { providerInvoiceId: true },
+        collection: 'donations', overrideAccess: true, depth: 0, limit, sort: 'createdAt',
+        select: { providerInvoiceId: true, paymentProvider: true, createdAt: true },
         where: { and: [{ status: { equals: 'pending' } }, { providerInvoiceId: { exists: true } }, { createdAt: { less_than: before.toISOString() } }] },
       });
-      return res.docs.map((d: any) => ({ id: d.id, providerInvoiceId: String(d.providerInvoiceId) }));
+      return res.docs.map((d: any) => ({ id: d.id, providerInvoiceId: String(d.providerInvoiceId), kind: kindFromProvider(d.paymentProvider), createdAt: d.createdAt }));
     },
-    confirmStatus: (inv) => getInvoiceStatus(inv, cfg),
+    confirmStatus: (inv, kind) => getInvoiceStatus(inv, cfg, fetch, kind),
     finalizePaid: (id) => finalizeDonationPaid(payload, id),
     setStatus: async (id, status) => {
       await payload.update({ collection: 'donations', id, overrideAccess: true, data: { status } });

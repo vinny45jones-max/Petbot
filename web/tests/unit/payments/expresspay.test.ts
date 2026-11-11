@@ -30,13 +30,14 @@ describe('expresspay client', () => {
     expect(r).toEqual({ invoiceId: '777', paymentUrl: 'https://inv/777', eripNumber: 'don-2' });
     expect(fakeFetch.mock.calls[0][0]).toBe('https://api.x/v1/invoices?token=T');
     expect(new URLSearchParams(fakeFetch.mock.calls[0][1].body).get('Amount')).toBe('10,00');
+    expect(new URLSearchParams(fakeFetch.mock.calls[0][1].body).get('Expiration')).toBe('20261118'); // неделя
   });
 
   it('signs requests in documented field order when secret is set', async () => {
     const fakeFetch = vi.fn().mockResolvedValueOnce(json({ InvoiceNo: 1 }));
     await createInvoice({ amount: 10, accountNo: 'don-3', info: 'Донат', now: NOW }, { ...cfg, useCard: false, secret: 'S' }, fakeFetch);
     // token, accountno, amount, currency, expiration, info, затем пустые необязательные поля
-    const expected = computeSignature(['T', 'don-3', '10,00', '933', '', 'Донат'], 'S');
+    const expected = computeSignature(['T', 'don-3', '10,00', '933', '20261118', 'Донат'], 'S');
     expect(fakeFetch.mock.calls[0][0]).toBe(`https://api.x/v1/invoices?token=T&signature=${expected}`);
   });
 
@@ -47,6 +48,12 @@ describe('expresspay client', () => {
     const erip = vi.fn().mockResolvedValueOnce(json({ Status: 3 }));
     expect(await getInvoiceStatus('777', { ...cfg, useCard: false }, erip)).toBe('paid');
     expect(erip.mock.calls[0][0]).toBe('https://api.x/v1/invoices/777/status?token=T');
+  });
+
+  it('status: explicit invoice kind wins over config', async () => {
+    const erip = vi.fn().mockResolvedValueOnce(json({ Status: 3 }));
+    expect(await getInvoiceStatus('9', cfg, erip, 'erip')).toBe('paid'); // cfg.useCard=true, но счёт был ЕРИП
+    expect(erip.mock.calls[0][0]).toBe('https://api.x/v1/invoices/9/status?token=T');
   });
 
   it('throws on non-2xx and on provider error payloads', async () => {

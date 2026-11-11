@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       secret: cfg.secret,
       findByAccountNo: async (accountNo) =>
         ((await payload.find({ collection: 'donations', where: { accountNo: { equals: accountNo } }, limit: 1, depth: 0, overrideAccess: true })).docs[0] as any) ?? null,
-      confirmStatus: (invoiceId) => getInvoiceStatus(invoiceId, cfg),
+      confirmStatus: (invoiceId, kind) => getInvoiceStatus(invoiceId, cfg, fetch, kind),
       finalizePaid: (id) => finalizeDonationPaid(payload, id),
       setStatus: async (id, status) => {
         await payload.update({ collection: 'donations', id, data: { status }, overrideAccess: true });
