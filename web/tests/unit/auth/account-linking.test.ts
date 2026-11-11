@@ -15,7 +15,8 @@ describe('findOrCreateUserByTelegram', () => {
     const user = await findOrCreateUserByTelegram(p, { id: 100, first_name: 'Ivan', auth_date: 0, hash: '' });
     expect(p.create).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'users',
-      data: expect.objectContaining({ telegramId: '100', role: 'citizen' }),
+      data: expect.objectContaining({ telegramId: '100', role: 'citizen', _verified: true }),
+      disableVerificationEmail: true,
     }));
     expect(user.telegramId).toBe('100');
   });
@@ -26,5 +27,11 @@ describe('findOrCreateUserByTelegram', () => {
     const user = await findOrCreateUserByTelegram(p, { id: 100, first_name: 'X', auth_date: 0, hash: '' });
     expect(p.create).not.toHaveBeenCalled();
     expect(user.id).toBe('u-1');
+  });
+
+  it('подтверждает существующего пользователя, созданного неподтверждённым (И-25)', async () => {
+    const p = mockPayload({ existing: { id: 'u-2', telegramId: '100', _verified: false } });
+    await findOrCreateUserByTelegram(p, { id: 100, auth_date: 0, hash: '' });
+    expect(p.update).toHaveBeenCalledWith(expect.objectContaining({ id: 'u-2', data: { _verified: true } }));
   });
 });

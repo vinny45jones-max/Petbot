@@ -126,6 +126,7 @@ const TEST_CITIZENS = [
   'citizen-comments@test.local',
   'citizen-donations@test.local',
   'citizen-password@test.local',
+  'citizen-magic@test.local',
 ];
 
 async function seedTestUser(payload: any, email: string, role = 'citizen') {

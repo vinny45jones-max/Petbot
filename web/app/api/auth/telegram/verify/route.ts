@@ -3,7 +3,7 @@ import { getPayload } from 'payload';
 import config from '@payload-config';
 import { verifyTelegramAuth, TelegramAuthPayload } from '@/lib/auth/telegram-validator';
 import { findOrCreateUserByTelegram } from '@/lib/auth/account-linking';
-import { issueSessionToken, setSessionCookie } from '@/lib/auth/session';
+import { startSession } from '@/lib/auth/session';
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as TelegramAuthPayload;
@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
   }
   const payload = await getPayload({ config });
   const user = await findOrCreateUserByTelegram(payload, body);
-  const token = issueSessionToken(user);
-  await setSessionCookie(token);
+  await startSession(payload, user.id);
   return NextResponse.json({ ok: true, user: { id: user.id, firstName: user.firstName, role: user.role } });
 }

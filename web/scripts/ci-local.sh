@@ -14,6 +14,7 @@ mkdir -p "$LOG_DIR"
 
 export PAYLOAD_SECRET=ci-test-secret-32-characters-aaaa
 export TELEGRAM_BOT_USERNAME=pet_aggregator_bot
+export TELEGRAM_BOT_TOKEN=ci-test-bot-token
 export NEXT_PUBLIC_APP_URL="http://localhost:$PORT"
 DB_CHECK="postgresql://pet:pet@localhost:$PG_PORT/pet_migrate_check"
 DB_TEST="postgresql://pet:pet@localhost:$PG_PORT/pet_ci_local"

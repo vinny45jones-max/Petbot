@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     const user = found.docs[0];
     const token = generateMagicToken();
     await payload.create({ collection: 'magic-link-tokens', data: { tokenHash: hashToken(token), user: user.id } });
-    const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/magic-link/consume?token=${token}`;
+    const url = `${process.env.NEXT_PUBLIC_APP_URL}/login/magic?token=${token}`;
     // сбой почты не должен отличать ответ для существующего адреса (иначе 500 раскрывает регистрацию)
     try {
       await sendEmail({ to: email, subject: 'Вход на Pet Aggregator BY', react: MagicLink({ loginUrl: url }) });

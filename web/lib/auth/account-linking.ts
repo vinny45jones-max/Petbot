@@ -5,7 +5,13 @@ import crypto from 'node:crypto';
 export async function findOrCreateUserByTelegram(payload: Payload, tg: TelegramAuthPayload) {
   const tgId = String(tg.id);
   const existing = await payload.find({ collection: 'users', where: { telegramId: { equals: tgId } }, limit: 1 });
-  if (existing.docs.length) return existing.docs[0] as any;
+  // Telegram подтвердил личность подписью — почта (служебная tg-…@telegram.local) не проверяется,
+  // а Payload при auth.verify не пускает пользователя с _verified=false (И-25).
+  if (existing.docs.length) {
+    const user = existing.docs[0] as any;
+    if (user._verified === false) await payload.update({ collection: 'users', id: user.id, data: { _verified: true } as any });
+    return user;
+  }
   const password = crypto.randomBytes(32).toString('hex');
   const created = await payload.create({
     collection: 'users',
@@ -20,7 +26,9 @@ export async function findOrCreateUserByTelegram(payload: Payload, tg: TelegramA
       role: 'citizen',
       ageConfirmed: true,
       consentPersonalData: true,
+      _verified: true,
     } as any,
+    disableVerificationEmail: true,
   });
   return created as any;
 }
