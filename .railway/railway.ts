@@ -1,4 +1,4 @@
-import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
+import { defineRailway, fn, github, postgres, preserve, project, ref, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const Postgres = postgres("Postgres", { region: "asia-southeast1-eqsg3a" });
@@ -29,7 +29,18 @@ export default defineRailway(() => {
     env: { BOT_DATA_DIR: preserve(), CARD_NUMBER: preserve(), CONTACT_PHONE: preserve(), OPENAI_API_KEY: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_SPECIAL_CHANNEL_ID: preserve() },
   });
 
+  // И-22: расписание в UTC. Функции без сборки — только POST на cron-роуты сайта с CRON_SECRET сайта.
+  const cron = (name: string, schedule: string, path: string) =>
+    fn(name, {
+      codeFile: "./functions/cron-trigger.ts",
+      deploy: { cronSchedule: schedule, restartPolicyType: "NEVER" },
+      replicas: { "asia-southeast1-eqsg3a": 1 },
+      env: { APP_URL: ref(Petbot, "NEXT_PUBLIC_APP_URL"), CRON_SECRET: ref(Petbot, "CRON_SECRET"), CRON_PATH: path },
+    });
+  const cronReconcile = cron("cron-reconcile", "0 * * * *", "/api/cron/donations-reconcile");
+  const cronUrgency = cron("cron-urgency", "0 3 * * *", "/api/cron/urgency-recalc");
+
   return project("reasonable-commitment", {
-    resources: [Postgres, Petbot, irapet_bot, postgresVolume, irapet_botVolume],
+    resources: [Postgres, Petbot, irapet_bot, cronReconcile, cronUrgency, postgresVolume, irapet_botVolume],
   });
 });
