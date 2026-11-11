@@ -109,6 +109,7 @@ async function main() {
   await seedOrgs(payload);
   await seedAnimals(payload);
   for (const email of TEST_CITIZENS) await seedTestUser(payload, email);
+  await seedTestUser(payload, 'moderator-2fa@test.local', 'moderator');
   await seedTestOrgAdmin(payload);
   await seedTestDonations(payload);
   console.log('Seeded facilities, orgs, animals.');
@@ -126,13 +127,13 @@ const TEST_CITIZENS = [
   'citizen-donations@test.local',
 ];
 
-async function seedTestUser(payload: any, email: string) {
+async function seedTestUser(payload: any, email: string, role = 'citizen') {
   if (process.env.NODE_ENV === 'production') return;
   const exists = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true });
   if (exists.docs.length) return;
   await payload.create({
     collection: 'users',
-    data: { email, password: 'Test12345!', role: 'citizen', firstName: 'Тест', ageConfirmed: true, consentPersonalData: true, _verified: true } as any,
+    data: { email, password: 'Test12345!', role, firstName: 'Тест', ageConfirmed: true, consentPersonalData: true, _verified: true } as any,
     overrideAccess: true,
   });
 }

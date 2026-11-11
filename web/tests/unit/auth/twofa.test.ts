@@ -11,7 +11,11 @@ function fakePayload(users: Row[]) {
   const audit: Row[] = [];
   return {
     db, audit,
-    findByID: async ({ id }: any) => ({ ...db.get(id) }),
+    // Как Payload: hidden-поля (секрет, хеши) отдаются только с showHiddenFields
+    findByID: async ({ id, showHiddenFields }: any) => {
+      const { totpSecretEnc, totpRecoveryHashes, ...rest } = db.get(id) as Row;
+      return showHiddenFields ? { ...rest, totpSecretEnc, totpRecoveryHashes } : rest;
+    },
     update: async ({ id, data }: any) => { db.set(id, { ...db.get(id), ...data }); return db.get(id); },
     create: async ({ data }: any) => { audit.push(data); return data; },
   } as any;

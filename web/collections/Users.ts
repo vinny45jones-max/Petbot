@@ -3,6 +3,7 @@ import { isAdmin } from '../lib/auth/rbac.ts';
 import { makeRegistrationGuard } from '../lib/auth/registration-guard.ts';
 import { verifyTurnstile } from '../lib/security/turnstile.ts';
 import { checkRateLimit } from '../lib/security/rate-limit.ts';
+import { canAccessAdmin } from '../lib/auth/admin-access.ts';
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -19,6 +20,8 @@ export const Users: CollectionConfig = {
     ],
   },
   access: {
+    // §16.2: админка — только moderator/superadmin с пройденной 2FA (proxy.ts уводит на /2fa).
+    admin: ({ req }) => canAccessAdmin(req.user as never, req.headers.get('cookie')),
     read: ({ req: { user } }) => {
       if (!user) return false;
       if (isAdmin(user as any)) return true;
@@ -44,6 +47,7 @@ export const Users: CollectionConfig = {
       type: 'select',
       required: true,
       defaultValue: 'citizen',
+      saveToJWT: true, // proxy.ts по роли решает, нужен ли 2FA-гейт
       options: [
         { label: 'Гость', value: 'guest' },
         { label: 'Гражданин', value: 'citizen' },

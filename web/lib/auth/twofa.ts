@@ -16,7 +16,7 @@ const defaultAllow: Allow = (key) => checkRateLimit(key, 5, 15 * 60 * 1000);
 interface TwofaRow { totpEnabled?: boolean | null; totpSecretEnc?: string | null; totpRecoveryHashes?: string[] | null }
 
 async function load(payload: Db, user: UserRef): Promise<TwofaRow> {
-  return (await payload.findByID({ collection: 'users', id: user.id, overrideAccess: true, depth: 0 })) as TwofaRow;
+  return (await payload.findByID({ collection: 'users', id: user.id, overrideAccess: true, showHiddenFields: true, depth: 0 })) as TwofaRow;
 }
 
 async function save(payload: Db, user: UserRef, data: TwofaRow): Promise<void> {
