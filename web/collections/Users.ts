@@ -4,6 +4,7 @@ import { makeRegistrationGuard } from '../lib/auth/registration-guard.ts';
 import { verifyTurnstile } from '../lib/security/turnstile.ts';
 import { checkRateLimit } from '../lib/security/rate-limit.ts';
 import { canAccessAdmin } from '../lib/auth/admin-access.ts';
+import { maskUnverifiedStaff } from '../lib/auth/twofa-session.ts';
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -11,6 +12,8 @@ export const Users: CollectionConfig = {
     tokenExpiration: 60 * 60 * 24 * 30,
     verify: true,
     cookies: { sameSite: 'Lax', secure: process.env.NODE_ENV === 'production' },
+    // токен только в httpOnly cookie (payload.config auth.jwtOrder = cookie) — в JSON ответа логина не отдаём
+    removeTokenFromResponses: true,
   },
   admin: { useAsTitle: 'email', defaultColumns: ['email', 'firstName', 'role', 'createdAt'] },
   hooks: {
@@ -18,6 +21,8 @@ export const Users: CollectionConfig = {
     beforeOperation: [
       makeRegistrationGuard({ verify: verifyTurnstile, allow: (key) => checkRateLimit(key, 10, 60 * 60 * 1000) }) as any,
     ],
+    // 2FA staff (§16.2): при входе по токену запроса staff без 2FA в этой сессии становится citizen.
+    afterRead: [({ doc, req }) => maskUnverifiedStaff(doc, req?.headers?.get?.('cookie'))],
     afterChange: [
       // Welcome-письмо. Без RESEND_API_KEY (dev, CI, сиды) — молча пропускаем; модули грузим лениво (tsx-шаблон).
       async ({ doc, operation }) => {
@@ -34,7 +39,7 @@ export const Users: CollectionConfig = {
   },
   access: {
     // §16.2: админка — только moderator/superadmin с пройденной 2FA (proxy.ts уводит на /2fa).
-    admin: ({ req }) => canAccessAdmin(req.user as never, req.headers.get('cookie')),
+    admin: ({ req }) => canAccessAdmin(req.user as never),
     read: ({ req: { user } }) => {
       if (!user) return false;
       if (isAdmin(user as any)) return true;

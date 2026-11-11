@@ -37,6 +37,8 @@ const r2Plugins = hasR2
   : [];
 
 export default buildConfig({
+  // Токен только из httpOnly cookie: заголовок Authorization обходил бы 2FA-гейт и cookie-сессии (§16.2).
+  auth: { jwtOrder: ['cookie'] },
   admin: {
     user: 'users',
     meta: { titleSuffix: ' — Pet Aggregator BY Admin' },

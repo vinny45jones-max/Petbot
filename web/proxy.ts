@@ -5,11 +5,13 @@ import { proxyDecision } from '@/lib/proxy-decision';
 
 export async function proxy(req: NextRequest) {
   const claims = await verifyPayloadToken(req.cookies.get('payload-token')?.value, process.env.PAYLOAD_SECRET ?? '');
+  const pass = claims ? verifyTwofaCookie(req.cookies.get(TWOFA_COOKIE_NAME)?.value) : null;
   const decision = proxyDecision({
     pathname: req.nextUrl.pathname,
+    search: req.nextUrl.search,
     maintenance: process.env.MAINTENANCE_MODE === 'true',
     claims,
-    twofaUid: claims ? verifyTwofaCookie(req.cookies.get(TWOFA_COOKIE_NAME)?.value) : null,
+    twofaOk: Boolean(claims && pass && pass.uid === String(claims.id) && pass.sid === claims.sid),
   });
   switch (decision.type) {
     case 'maintenance':
@@ -19,8 +21,6 @@ export async function proxy(req: NextRequest) {
       url.searchParams.set('next', decision.next);
       return NextResponse.redirect(url);
     }
-    case 'forbidden':
-      return NextResponse.json({ error: 'twofa_required' }, { status: 403 });
     default:
       return NextResponse.next();
   }
