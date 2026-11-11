@@ -18,6 +18,19 @@ export const Users: CollectionConfig = {
     beforeOperation: [
       makeRegistrationGuard({ verify: verifyTurnstile, allow: (key) => checkRateLimit(key, 10, 60 * 60 * 1000) }) as any,
     ],
+    afterChange: [
+      // Welcome-письмо. Без RESEND_API_KEY (dev, CI, сиды) — молча пропускаем; модули грузим лениво (tsx-шаблон).
+      async ({ doc, operation }) => {
+        if (operation !== 'create' || !process.env.RESEND_API_KEY) return;
+        try {
+          const { sendWelcomeOnCreate } = await import('../lib/email/welcome-hook.ts');
+          const { sendEmail } = await import('../lib/email/resend-client.ts');
+          await sendWelcomeOnCreate({ doc, operation }, sendEmail);
+        } catch (e) {
+          console.warn('[welcome-email] хук не отработал:', (e as Error).message);
+        }
+      },
+    ],
   },
   access: {
     // §16.2: админка — только moderator/superadmin с пройденной 2FA (proxy.ts уводит на /2fa).

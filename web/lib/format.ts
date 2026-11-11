@@ -1,5 +1,5 @@
 // Форматтеры и plural-правила для локали ru-BY. formatByn — канон в lib/payments/amounts.ts.
-export { formatByn } from '@/lib/payments/amounts';
+export { formatByn } from './payments/amounts.ts';
 
 /** CLDR-правило множественного числа для русского. */
 export function pluralRu(count: number, forms: { one: string; few: string; many: string }): string {
