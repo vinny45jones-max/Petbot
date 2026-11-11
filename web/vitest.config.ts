@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // первый динамический import (шаблоны писем) под параллельной нагрузкой ci:local превышал 5 с (finalize-paid, 11.11.2026)
+    testTimeout: 15_000,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/unit/**/*.test.ts'],
     exclude: ['tests/e2e/**'],
