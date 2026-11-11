@@ -1,8 +1,7 @@
 'use client';
 import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
-
-const KEY = 'cookie-consent';
+import { COOKIE_CONSENT_EVENT, COOKIE_CONSENT_KEY as KEY } from '@/lib/onboarding';
 
 function subscribe(cb: () => void) {
   window.addEventListener('storage', cb);
@@ -16,6 +15,7 @@ export function CookieBanner() {
   function accept() {
     localStorage.setItem(KEY, 'accepted');
     setAccepted(true);
+    window.dispatchEvent(new Event(COOKIE_CONSENT_EVENT));
   }
   if (accepted || consent !== null) return null;
   return (

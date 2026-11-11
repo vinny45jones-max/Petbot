@@ -7,6 +7,7 @@ import { FONT_SCALE_INIT_SCRIPT } from '@/lib/a11y/font-scale';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CookieBanner } from '@/components/compliance/CookieBanner';
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
 
@@ -32,6 +33,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           <main className="min-h-screen">{children}</main>
           <Footer />
           <CookieBanner />
+          <OnboardingTour />
         </NextIntlClientProvider>
       </body>
     </html>
