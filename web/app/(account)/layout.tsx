@@ -8,6 +8,7 @@ import { FONT_SCALE_INIT_SCRIPT } from '@/lib/a11y/font-scale';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { CookieBanner } from '@/components/compliance/CookieBanner';
+import { TawkWidget } from '@/components/support/TawkWidget';
 import { requireUser } from '@/lib/auth/current-user';
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'] });
@@ -43,6 +44,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
           </div>
           <Footer />
           <CookieBanner />
+          <TawkWidget />
         </NextIntlClientProvider>
       </body>
     </html>
