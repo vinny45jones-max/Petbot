@@ -20,12 +20,10 @@
 - [ ] Секреты в Railway (сервис Petbot), не в git: `PAYLOAD_SECRET`, `DATABASE_URL`, `R2_*`, `RESEND_*`, `EXPRESSPAY_*` (боевые), `TWOFA_ISSUER`, `SUPERADMIN_EMAIL`, `CRON_SECRET`.
 - [ ] 2FA включена у всех moderator и superadmin: войти по email → «Кабинет → Безопасность» → «Настроить 2FA» → сохранить 10 резервных кодов. Затем `/admin` спрашивает код раз в 12 часов.
 - [ ] `MAINTENANCE_MODE` не задан или `false`. Включить техработы: `MAINTENANCE_MODE=true` в Railway → все, кроме модераторов, видят `/maintenance` (HTTP 503); `/status`, `/api/health`, `/admin` доступны.
-- [ ] Бэкап БД:
-  - [ ] отдельный **приватный** бакет R2 → `R2_BACKUP_BUCKET` (не бакет медиа: он публичный, скрипт откажется);
-  - [ ] в образе сервиса есть `pg_dump` той же major-версии, что Postgres на Railway (как добавить пакет в сборку Railway — уточнить в документации их сборщика; путь к бинарю можно задать через `PG_DUMP_BIN`);
-  - [ ] Railway cron-сервис: `npm run backup:db`, расписание `0 3 * * 1` (понедельник 03:00 UTC), `BACKUP_RETENTION_WEEKS=8`;
-  - [ ] первый бэкап появился в бакете (`db-backups/ГГГГ-ММ-ДД.sql.gz`);
-  - [ ] **тест восстановления** (раз в квартал): скачать свежий дамп, `gunzip -c файл.sql.gz | psql <одноразовая БД>`, открыть сайт на этой БД, удалить БД.
+- [x] Бэкап БД — встроенные бэкапы Railway (решение владельца 11.11.2026): расписание weekly у сервиса Postgres (суббота 19:05 UTC, хранение 27 дней), включено 11.11.2026. Проверить: `railway postgres pitr schedule list --service Postgres --json`, `railway postgres pitr backup list --service Postgres --json`.
+  - [ ] **тест восстановления** (раз в квартал): Railway → Postgres → Backups → восстановить в отдельный сервис (не поверх рабочей базы!), открыть сайт на нём, удалить сервис.
+  - Перед рискованной миграцией — ручной бэкап: `railway postgres pitr backup create --name <имя> --service Postgres`.
+  - Запасной путь — копия у другого провайдера: `npm run backup:db` (pg_dump → приватный S3-бакет `R2_BACKUP_BUCKET`), сейчас не используется.
 - [ ] Остальные cron-сервисы Railway (И-22): `npm run cron:reconcile` раз в час, `npm run cron:urgency` раз в сутки.
 
 ## Мониторинг
