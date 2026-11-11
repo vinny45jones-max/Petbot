@@ -19,11 +19,13 @@
     "seed:demo": "node scripts/seed-demo.ts",
     "cron:urgency": "node scripts/cron-urgency.ts",
     "cron:reconcile": "node scripts/cron-reconcile.ts",
+    "backup:db": "node scripts/backup-db.ts",
     "ci:local": "bash scripts/ci-local.sh",
     "migrate": "payload migrate --disable-transpile",
     "migrate:create": "node scripts/migrate-create.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
     "@base-ui/react": "^1.5.0",
     "@payloadcms/db-postgres": "3.90.2",
     "@payloadcms/email-resend": "3.90.2",
