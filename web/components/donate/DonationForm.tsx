@@ -18,10 +18,15 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
   const [error, setError] = useState('');
   const [erip, setErip] = useState<string | null>(null);
 
+  const title = targetTitle ? <p className="text-gray-600">Помощь: <b>{targetTitle}</b></p> : null;
+
   if (!enabled) {
     return (
-      <div className="rounded-xl border bg-gray-50 p-4 text-gray-700">
-        Приём пожертвований скоро заработает. Пока можно помочь, связавшись с приютом напрямую.
+      <div className="space-y-4">
+        {title}
+        <div className="rounded-xl border bg-gray-50 p-4 text-gray-700">
+          Приём пожертвований скоро заработает. Пока можно помочь, связавшись с приютом напрямую.
+        </div>
       </div>
     );
   }
@@ -60,7 +65,7 @@ export function DonationForm({ targetType, targetSlug, targetTitle, enabled }: P
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      {targetTitle && <p className="text-gray-600">Помощь: <b>{targetTitle}</b></p>}
+      {title}
 
       <div className="flex flex-wrap items-center gap-2">
         {PRESET_AMOUNTS.map((p) => (

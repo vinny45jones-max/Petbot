@@ -9,8 +9,9 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('DonationForm', () => {
   it('без подключённого ExpressPay показывает «скоро» и не даёт отправить', () => {
-    form({ targetType: 'general_fund', enabled: false });
+    form({ targetType: 'animal', targetTitle: 'Рекс №12', enabled: false });
     expect(screen.getByText(/скоро заработает/i)).toBeInTheDocument();
+    expect(screen.getByText('Рекс №12')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Перейти к оплате' })).toBeNull();
   });
 
