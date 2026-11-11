@@ -4,9 +4,18 @@ import { isAccountNo } from '@/lib/payments/donation';
 
 export const metadata = { title: 'Оплата через ЕРИП', robots: { index: false, follow: false } };
 
+// «%25» и прочий битый escape: decodeURIComponent бросает URIError → было 500 вместо 404 (И-27)
+function safeDecode(s: string): string | null {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return null;
+  }
+}
+
 export default async function EripHelpPage({ params }: { params: Promise<{ number: string }> }) {
-  const number = decodeURIComponent((await params).number);
-  if (!isAccountNo(number)) notFound();
+  const number = safeDecode((await params).number);
+  if (number === null || !isAccountNo(number)) notFound();
   const serviceCode = process.env.EXPRESSPAY_ERIP_SERVICE_CODE;
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 py-10">
