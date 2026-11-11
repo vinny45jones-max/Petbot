@@ -12,6 +12,7 @@ import { buildAnimalJsonLd } from '@/lib/jsonld';
 import { JsonLd } from '@/components/JsonLd';
 import { CommentSection } from '@/components/comments/CommentSection';
 import { SimilarAnimals } from '@/components/catalog/SimilarAnimals';
+import { DonationSummary } from '@/components/donate/DonationSummary';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { RichText } from '@/components/RichText';
 import { AnimalBadges } from '@/components/catalog/AnimalBadges';
@@ -86,6 +87,8 @@ export default async function AnimalDetailPage({ params }: { params: Promise<{ c
         ) : (
           <AdoptModal animalId={String(animal.id)} />
         )}
+
+        <DonationSummary target={{ type: 'animal', id: animal.id, slug: animal.slug as string }} />
 
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 rounded-2xl bg-gray-50 p-4 text-sm">
           {facts.map(([label, value]) => (

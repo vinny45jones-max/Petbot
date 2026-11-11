@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { DonationSummary } from '@/components/donate/DonationSummary';
 import { RichText } from '@/components/RichText';
 import { notFound } from 'next/navigation';
 import { getPayload } from 'payload';
@@ -62,6 +63,9 @@ export default async function OrganizationPage({ params }: { params: Promise<{ s
       <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
         {org.phone && <a href={`tel:${org.phone}`} className="rounded-xl bg-blue-600 px-5 py-2 font-semibold text-white">Позвонить: {org.phone}</a>}
         {org.websiteUrl && <a href={org.websiteUrl} className="text-blue-700" target="_blank" rel="noopener">Сайт</a>}
+      </div>
+      <div className="mt-6 max-w-md">
+        <DonationSummary target={{ type: 'organization', id: org.id, slug: org.slug as string }} />
       </div>
       <h2 className="mb-4 mt-8 text-xl font-semibold">Питомцы организации</h2>
       <AnimalGrid animals={animals.docs as any} />
