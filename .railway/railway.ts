@@ -16,7 +16,7 @@ export default defineRailway(() => {
     deploy: { restartPolicyMaxRetries: 3 },
     replicas: { "asia-southeast1-eqsg3a": 1 },
     networking: { privateNetworkEndpoint: "petbot" },
-    env: { CRON_SECRET: preserve(), DATABASE_URL: preserve(), INDEXNOW_KEY: preserve(), NEXT_PUBLIC_APP_URL: preserve(), PAYLOAD_SECRET: preserve() },
+    env: { CRON_SECRET: preserve(), DATABASE_URL: preserve(), INDEXNOW_KEY: preserve(), NEXT_PUBLIC_APP_URL: preserve(), PAYLOAD_SECRET: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_BOT_USERNAME: preserve() },
   });
   const irapet_bot = service("irapet_bot", {
     source: github("vinny45jones-max/Petbot", { checkSuites: false }),
