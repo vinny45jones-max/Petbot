@@ -24,3 +24,18 @@ export async function runHealthChecks(probes: { db: Probe; storage: Probe }, tim
   const [db, storage] = await Promise.all([probe(probes.db, timeoutMs), probe(probes.storage, timeoutMs)]);
   return { db, storage };
 }
+
+/**
+ * Результат fn живёт ttlMs; параллельные вызовы ждут один и тот же запрос. /api/health и /status публичные —
+ * без этого каждый запрос к ним бил бы в БД и R2 (HeadBucket).
+ */
+export function memoizeFor<T>(fn: () => Promise<T>, ttlMs: number, now: () => number = Date.now): () => Promise<T> {
+  let value: { at: number; promise: Promise<T> } | null = null;
+  return () => {
+    if (value && now() - value.at < ttlMs) return value.promise;
+    const promise = fn();
+    value = { at: now(), promise };
+    promise.catch(() => { value = null; });
+    return promise;
+  };
+}

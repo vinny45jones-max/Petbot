@@ -26,3 +26,23 @@ describe('runHealthChecks', () => {
     expect(await runHealthChecks({ db: boom, storage: hang }, 50)).toEqual({ db: 'error', storage: 'error' });
   });
 });
+
+describe('memoizeFor', () => {
+  it('в пределах TTL — один вызов, в том числе для параллельных запросов; после TTL — новый', async () => {
+    const { memoizeFor } = await import('@/lib/health');
+    let t = 0; let calls = 0;
+    const get = memoizeFor(async () => ++calls, 30_000, () => t);
+    expect(await Promise.all([get(), get()])).toEqual([1, 1]);
+    t = 29_999;
+    expect(await get()).toBe(1);
+    t = 30_000;
+    expect(await get()).toBe(2);
+  });
+  it('ошибку не кэширует', async () => {
+    const { memoizeFor } = await import('@/lib/health');
+    let calls = 0;
+    const get = memoizeFor(async () => { calls++; if (calls === 1) throw new Error('down'); return calls; }, 30_000, () => 0);
+    await expect(get()).rejects.toThrow('down');
+    expect(await get()).toBe(2);
+  });
+});
