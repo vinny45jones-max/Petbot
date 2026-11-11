@@ -84,3 +84,31 @@ test('2FA модератора: без неё нет админки и прав 
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/2fa/);
 });
+
+// seed: citizen-password@test.local — свой пользователь, чтобы смена пароля не мешала другим спекам
+test('смена пароля в кабинете: старый пароль больше не подходит, новый — да', async ({ page, playwright, baseURL }) => {
+  const email = 'citizen-password@test.local';
+  await page.goto('/login');
+  await page.getByLabel('Email').first().fill(email);
+  await page.getByLabel('Пароль').fill('Test12345!');
+  await page.getByRole('button', { name: /Войти/ }).first().click();
+  await expect(page).toHaveURL(/\/me|\/$/, { timeout: 15_000 });
+  await page.goto('/me/security');
+
+  await page.getByLabel('Текущий пароль').fill('wrong-password');
+  await page.getByLabel('Новый пароль (минимум 8 символов)').fill('NewPass-2026');
+  await page.getByLabel('Повторите новый пароль').fill('NewPass-2026');
+  await page.getByRole('button', { name: 'Сменить пароль' }).click();
+  await expect(page.getByRole('main').getByRole('alert')).toHaveText('Текущий пароль неверный.');
+
+  await page.getByLabel('Текущий пароль').fill('Test12345!');
+  await page.getByRole('button', { name: 'Сменить пароль' }).click();
+  await expect(page.getByRole('main').getByRole('status')).toContainText('Пароль изменён');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Смена пароля' })).toBeVisible(); // текущая сессия жива
+
+  const api = await playwright.request.newContext({ baseURL });
+  expect((await api.post('/api/users/login', { data: { email, password: 'Test12345!' } })).status()).toBe(401);
+  expect((await api.post('/api/users/login', { data: { email, password: 'NewPass-2026' } })).status()).toBe(200);
+  await api.dispose();
+});

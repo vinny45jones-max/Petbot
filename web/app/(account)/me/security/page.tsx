@@ -1,6 +1,7 @@
 import { requireUser } from '@/lib/auth/current-user';
 import { isAdmin } from '@/lib/auth/rbac';
 import { TwoFactorSetup } from '@/components/auth/TwoFactorSetup';
+import { ChangePasswordForm } from '@/components/auth/ChangePasswordForm';
 
 export const metadata = { title: 'Безопасность' };
 
@@ -19,6 +20,10 @@ export default async function SecurityPage() {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Двухфакторная аутентификация (TOTP)</h2>
         <TwoFactorSetup enabled={enabled} />
+      </section>
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Смена пароля</h2>
+        <ChangePasswordForm />
       </section>
     </div>
   );

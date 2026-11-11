@@ -66,3 +66,4 @@ related:
 - Свой `jwt.sign(..., PAYLOAD_SECRET)` без `authVersion` и `sid` Payload не принимает: так сломан вход через Telegram и magic-link, см. И-25 в `docs/ПЛАН_ИЗМЕНЕНИЙ.md`. Сессию надо выдавать механизмом Payload.
 - `verifyEmail` ставит `_verified` через `db.updateOne`, хуки коллекции не вызываются. Триггер «на подтверждение email» через `afterChange` не сработает.
 - otplib 13: класса `authenticator` больше нет, API функциональный и асинхронный: `generateSecret`, `generate({secret})`, `verify({secret, token, epochTolerance: 30})` → `{ valid }`, `generateURI`.
+- Смена пароля через локальный API (`payload.update({ data: { password } })`) удаляет **все** сессии пользователя, кроме `req.user._sid`. Без `user` в вызове слетает и текущий вход. Передавать `user: { ...user, collection: 'users', _sid }` (см. `web/lib/auth/change-password.ts`).

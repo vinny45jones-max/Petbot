@@ -41,7 +41,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
               <Link href="/me/inquiries">Мои заявки</Link>
               <Link href="/me/security">Безопасность</Link>
             </nav>
-            {children}
+            <main>{children}</main>
           </div>
           <Footer />
           <CookieBanner />
