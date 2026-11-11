@@ -15,6 +15,8 @@ tags: [railway, monorepo, deploy, railway-json, reference-vars, healthcheck, git
 related: [cross-plan-contract-drift]
 ---
 
+> **Устарело с 11.11.2026:** `railway.json` в проекте больше нет, настройки сервисов — в `.railway/railway.ts` (см. `docs/solutions/devops/railway-config-as-code-to-iac.md`). Правило про Root Directory остаётся в силе для понимания, откуда сервис собирается.
+
 # Railway monorepo: railway.json читается из Root Directory сервиса, не из корня репо
 
 ## Контекст

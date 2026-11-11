@@ -24,3 +24,6 @@ run_bot.pyw
 photo/
 .agents/
 skills-lock.json
+
+# SDK для .railway/railway.ts
+.railway/node_modules/
