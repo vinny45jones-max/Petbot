@@ -22,7 +22,7 @@ test('header shows cabinet link when logged in and has no dead links', async ({ 
     expect((await request.get(href!)).status(), href!).toBe(200);
   }
   await page.goto('/login');
-  await page.getByLabel('Email').first().fill('citizen@test.local');
+  await page.getByLabel('Email').first().fill('citizen-header@test.local');
   await page.getByLabel('Пароль').fill('Test12345!');
   await page.getByRole('button', { name: /Войти/ }).first().click();
   await expect(page).toHaveURL(/\/me|\/$/, { timeout: 15_000 });

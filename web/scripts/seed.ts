@@ -108,15 +108,24 @@ async function main() {
   await seedFacilities(payload);
   await seedOrgs(payload);
   await seedAnimals(payload);
-  await seedTestUser(payload);
+  for (const email of TEST_CITIZENS) await seedTestUser(payload, email);
   await seedTestOrgAdmin(payload);
   console.log('Seeded facilities, orgs, animals.');
   process.exit(0);
 }
 
-async function seedTestUser(payload: any) {
+// Отдельный пользователь на каждый e2e-спек со входом: Payload хранит сессии массивом в документе
+// пользователя, параллельные входы одного пользователя затирают сессии друг друга (И-18).
+const TEST_CITIZENS = [
+  'citizen@test.local',
+  'citizen-submit@test.local',
+  'citizen-header@test.local',
+  'citizen-inquiry@test.local',
+  'citizen-comments@test.local',
+];
+
+async function seedTestUser(payload: any, email: string) {
   if (process.env.NODE_ENV === 'production') return;
-  const email = 'citizen@test.local';
   const exists = await payload.find({ collection: 'users', where: { email: { equals: email } }, limit: 1, overrideAccess: true });
   if (exists.docs.length) return;
   await payload.create({

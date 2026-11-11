@@ -26,7 +26,7 @@ test('intake-facility animal exposes adoption CTA (ФИКС 1)', async ({ page }
 // Регрессия: на проде POST /api/inquiries отвечал 500 — прежние тесты только открывали окно, но не отправляли форму
 test('citizen submits an adoption inquiry and sees it in the cabinet', async ({ page }) => {
   await page.goto('/login');
-  await page.getByLabel('Email').first().fill('citizen@test.local');
+  await page.getByLabel('Email').first().fill('citizen-inquiry@test.local');
   await page.getByLabel('Пароль').fill('Test12345!');
   await page.getByRole('button', { name: /Войти/ }).first().click();
   await expect(page).toHaveURL(/\/me|\/$/, { timeout: 15_000 });

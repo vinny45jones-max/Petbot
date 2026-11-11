@@ -9,7 +9,7 @@ async function loginAs(page: any, email: string) {
 }
 
 test('citizen submits an animal via wizard', async ({ page }) => {
-  await loginAs(page, 'citizen@test.local');
+  await loginAs(page, 'citizen-submit@test.local');
   await page.goto('/me/animals/new');
 
   // шаг 1 — фото

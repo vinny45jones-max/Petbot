@@ -26,7 +26,7 @@ test('guest sees login prompt under comments', async ({ page }) => {
 });
 
 test('citizen posts a comment and can report it', async ({ page }) => {
-  await loginAs(page, 'citizen@test.local');
+  await loginAs(page, 'citizen-comments@test.local');
   await openMurka(page);
   const text = `Хочу помочь Мурке! ${Date.now()}`;
   await page.getByPlaceholder('Ваш комментарий').fill(text);
