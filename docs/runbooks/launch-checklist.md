@@ -4,7 +4,8 @@
 
 ## Блокеры из кода
 
-- [ ] **И-25:** вход через Telegram и magic-link даёт сессию, которую Payload принимает (сейчас `payload.auth` → `user=null`). Без этого вход работает только по email и паролю.
+- [x] **И-25:** вход через Telegram и magic-link даёт сессию, которую Payload принимает — починено и выложено 11.11.2026 (e2e `login-telegram-magic.spec.ts`).
+  - [ ] живой вход через Telegram на проде после `/setdomain` у `@pet_aggregator_bot`.
 - [ ] **И-15:** убрать демо-витрину: `npm run seed:demo -- --remove` на прод-БД, удалить `web/media/demo-*` и `web/seed-assets/demo`.
 - [ ] **И-26:** ссылка подтверждения email из письма реально подтверждает адрес (проверить после подключения Resend).
 
