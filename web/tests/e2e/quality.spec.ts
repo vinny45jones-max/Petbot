@@ -45,7 +45,7 @@ test('2FA модератора: без неё нет админки и API; enro
 
   await page.getByLabel('Код подтверждения').fill('123456');
   await page.getByRole('button', { name: 'Подтвердить' }).click();
-  await page.getByRole('link', { name: 'Безопасность' }).last().click();
+  await page.getByRole('main').getByRole('link', { name: 'Безопасность' }).click();
 
   await expect(page).toHaveURL(/\/me\/security/);
   await page.getByRole('button', { name: 'Настроить 2FA' }).click();
