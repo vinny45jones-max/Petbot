@@ -39,6 +39,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
               <Link href="/me" className="font-medium">Кабинет</Link>
               <Link href="/me/animals">Мои животные</Link>
               <Link href="/me/inquiries">Мои заявки</Link>
+              <Link href="/me/security">Безопасность</Link>
             </nav>
             {children}
           </div>

@@ -8,6 +8,7 @@ import * as migration_20261007_192222_animals_special_status from './20261007_19
 import * as migration_20261110_202716_urgency_announce from './20261110_202716_urgency_announce';
 import * as migration_20261111_074019_donations from './20261111_074019_donations';
 import * as migration_20261111_104430_donations_card_provider from './20261111_104430_donations_card_provider';
+import * as migration_20261111_123854_users_totp from './20261111_123854_users_totp';
 
 export const migrations = [
   {
@@ -58,6 +59,11 @@ export const migrations = [
   {
     up: migration_20261111_104430_donations_card_provider.up,
     down: migration_20261111_104430_donations_card_provider.down,
-    name: '20261111_104430_donations_card_provider'
+    name: '20261111_104430_donations_card_provider',
+  },
+  {
+    up: migration_20261111_123854_users_totp.up,
+    down: migration_20261111_123854_users_totp.down,
+    name: '20261111_123854_users_totp'
   },
 ];

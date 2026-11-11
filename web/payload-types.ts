@@ -171,6 +171,20 @@ export interface User {
   isBlocked?: boolean | null;
   lastSeenAt?: string | null;
   /**
+   * 2FA включена (TOTP)
+   */
+  totpEnabled?: boolean | null;
+  totpSecretEnc?: string | null;
+  totpRecoveryHashes?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Организации, где пользователь — админ
    */
   organizations?: {
@@ -914,6 +928,9 @@ export interface UsersSelect<T extends boolean = true> {
   role?: T;
   isBlocked?: T;
   lastSeenAt?: T;
+  totpEnabled?: T;
+  totpSecretEnc?: T;
+  totpRecoveryHashes?: T;
   organizations?: T;
   ageConfirmed?: T;
   consentPersonalData?: T;

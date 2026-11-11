@@ -66,6 +66,16 @@ export const Users: CollectionConfig = {
       },
     },
     { name: 'lastSeenAt', type: 'date', admin: { readOnly: true } },
+    // 2FA (§16.2): меняются только через /api/auth/2fa/* (overrideAccess), секрет и хеши кодов не отдаются наружу.
+    {
+      name: 'totpEnabled',
+      type: 'checkbox',
+      defaultValue: false,
+      access: { create: () => false, update: () => false },
+      admin: { readOnly: true, description: '2FA включена (TOTP)' },
+    },
+    { name: 'totpSecretEnc', type: 'text', hidden: true, access: { read: () => false, create: () => false, update: () => false } },
+    { name: 'totpRecoveryHashes', type: 'json', hidden: true, access: { read: () => false, create: () => false, update: () => false } },
     {
       name: 'organizations',
       type: 'join',
