@@ -4,7 +4,7 @@ import type { TokenClaims } from './auth/payload-token.ts';
 export type ProxyDecision = { type: 'next' } | { type: 'maintenance' } | { type: 'twofa'; next: string } | { type: 'forbidden' };
 
 const STAFF = new Set(['moderator', 'superadmin']);
-const MAINTENANCE_ALLOW = ['/api/health', '/maintenance', '/_next', '/favicon.ico', '/admin', '/api/users/', '/api/auth/2fa/', '/2fa'];
+const MAINTENANCE_ALLOW = ['/api/health', '/status', '/maintenance', '/_next', '/favicon.ico', '/admin', '/api/users/', '/api/auth/2fa/', '/2fa'];
 const ADMIN_NO_2FA = ['/admin/logout', '/admin/login'];
 const API_NO_2FA = ['/api/users/login', '/api/users/logout', '/api/users/me', '/api/users/refresh-token', '/api/auth/2fa/', '/api/health'];
 

@@ -10,7 +10,7 @@ describe('proxyDecision: maintenance', () => {
     expect(proxyDecision({ ...m, pathname: '/animals' })).toEqual({ type: 'maintenance' });
   });
   it('healthcheck, статика, админка и вход — пропускаем', () => {
-    for (const p of ['/api/health', '/api/health/ready', '/maintenance', '/_next/static/x.js', '/admin/login', '/api/users/login', '/favicon.ico']) {
+    for (const p of ['/api/health', '/api/health/ready', '/status', '/maintenance', '/_next/static/x.js', '/admin/login', '/api/users/login', '/favicon.ico']) {
       expect(proxyDecision({ ...m, pathname: p })).toEqual({ type: 'next' });
     }
   });
