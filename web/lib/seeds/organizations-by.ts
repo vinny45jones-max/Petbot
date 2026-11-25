@@ -86,7 +86,39 @@ export const organizationsBY: OrgSeed[] = [
     note: 'Около 40 собак, забирают с Гурского и из гомельского пункта отлова', source: '4lapki.by',
   },
   { name: 'Дом собачьей надежды', cityName: 'Минск', kind: 'Волонтёрский приют', note: 'Контакты в карточке 2ГИС', source: '2ГИС' },
-  { name: 'Кот и собака', cityName: 'Минск', kind: 'Приют для животных', note: 'Контакты в карточке 2ГИС', source: '2ГИС' },
+  {
+    name: 'Кот и собака', cityName: 'Минск', kind: 'Приют для животных (ООЗЖ «КиС»)',
+    address: 'ул. Мележа, 5, корп. 1, оф. 408 (почтовый адрес)', email: 'info@kotisobaka.by',
+    websiteUrl: 'https://kotisobaka.by',
+    note: 'Email только для юридической переписки. Около 36 животных в каталоге TailHarbor',
+    source: 'kotisobaka.by, tailharbor.eu, 2ГИС',
+  },
+  {
+    name: 'Барбос', cityName: 'Минск', kind: 'Общество защиты животных «Барбос», пристройство',
+    websiteUrl: 'https://barbos.by', instagramUrl: 'https://www.instagram.com/barbos_belarus',
+    note: 'Facebook: facebook.com/Barbos.Belarus. Около 76 животных в каталоге TailHarbor', source: 'barbos.by, tailharbor.eu',
+  },
+  {
+    name: 'HelpSafe', cityName: 'Минск', kind: 'Волонтёрский портал и координация по всей РБ (не приют)',
+    websiteUrl: 'https://helpsafe.by', instagramUrl: 'https://www.instagram.com/helpsafe.by', tgUrl: 'https://telegram.me/helpsafeby',
+    note: 'Facebook: facebook.com/groups/helpsafe.by; YouTube: @helpsafe', source: 'zooplaneta.by, tailharbor.eu',
+  },
+  {
+    name: 'Котята даром (Kotby)', cityName: 'Минск', kind: 'Доска объявлений «в дар» (не приют)',
+    address: 'ул. Чечота, 25, оф. 55', websiteUrl: 'https://kotby.by',
+    note: 'Около 1260 объявлений в каталоге TailHarbor', source: 'spravka.by, tailharbor.eu',
+  },
+  { name: 'tuzikdogs', cityName: 'Минск', kind: 'Волонтёры', instagramUrl: 'https://www.instagram.com/tuzikdogs', source: 'instagram.com' },
+  {
+    name: 'Помощь бездомным животным МИНСК (ОК)', cityName: 'Минск', kind: 'Волонтёрская группа в соцсети',
+    note: 'ok.ru/group57780067237925', source: 'ok.ru',
+  },
+  {
+    name: 'Помощь животным Солигорска', cityName: 'Солигорск', kind: 'Волонтёрское сообщество',
+    note: 'Более 5000 участников; группа ОК: ok.ru/group53314449637568; также помогают в Слуцке',
+    source: 'stc-tv.by, shahter.by, slutsk-gorod.by, ok.ru',
+  },
+  { name: 'Борисов: помощь бездомным животным (ОК)', cityName: 'Борисов', kind: 'Волонтёрская группа в соцсети', note: 'ok.ru/group/51751833436397', source: 'ok.ru' },
   { name: 'Pesokot.by', cityName: 'Минск', kind: 'Приют для животных', websiteUrl: 'https://pesokot.by', note: 'Контакты в карточке 2ГИС', source: '2ГИС' },
   { name: 'Домик спасённых душ', kind: 'Приют для животных', address: 'Гатово, Минский район', note: 'Контакты в карточке 2ГИС', source: '2ГИС' },
   {
@@ -132,7 +164,27 @@ export const organizationsBY: OrgSeed[] = [
     vkUrl: 'https://vk.com/murziki2020', note: 'Член АЗО. Возможно, связаны с «Мурзиками» в Минске', source: 'azo.by',
   },
 
+  {
+    name: 'SOS – помощь бездомным животным г. Кобрина', cityName: 'Кобрин', kind: 'Волонтёры, частный мини-приют / передержка',
+    phone: '+375 33 307-52-77 (Людмила), +375 29 734-68-15 (Екатерина)', websiteUrl: 'https://sos-kobrin.by',
+    note: 'Работает с 2015 года. Группа ОК: ok.ru/sospomo', source: 'sos-kobrin.by, ok.ru',
+  },
+  { name: 'Четвероногий дружок для вашей семьи', cityName: 'Кобрин', kind: 'Группа добровольных волонтёров', note: 'Контакты не найдены', source: 'greenbelarus.info' },
+  { name: 'Помощь бездомным животным, Лунинец', cityName: 'Лунинец', kind: 'Волонтёры', note: 'Группа ВКонтакте с таким названием, публикуют финотчёты', source: 'domwody.by' },
+  {
+    name: 'Волонтёры ивацевичского приюта', cityName: 'Ивацевичи', kind: 'Волонтёры местного временного питомника',
+    phone: '+375 33 323-44-40 (Ольга), +375 29 525-44-15 (Светлана)',
+    note: 'Viber-чат «Мой новый лучший друг». Телефоны из публикации 2019 года, нужна проверка', source: '1reg.pro',
+  },
+  { name: 'Помощь бездомным животным Столина', cityName: 'Столин', kind: 'Инициативная группа волонтёров', note: 'Ухаживают за собаками в ПВС ЖКХ', source: '1reg.pro' },
+
   // Гродненская область
+  {
+    name: 'Zoo-Help (Лида)', cityName: 'Лида', kind: 'Волонтёрское движение, передержки',
+    phone: '+375 33 360-13-15 (Марина), +375 29 598-04-59 (Татьяна), +375 29 589-98-62',
+    instagramUrl: 'https://www.instagram.com/Zoo_Lida',
+    note: 'Работает с 2015 года. Группа ОК: ok.ru/nazapravke, группа ВКонтакте «Zoo-help»', source: 'ok.ru, pvlida.by, lidanews.by',
+  },
   {
     name: 'Преданное сердце', cityName: 'Гродно', kind: 'Приют собак и кошек (ГООЗЖ «Преданное сердце»)',
     address: 'мкр. Лапенки (точный адрес не указан)', websiteUrl: 'https://predannoeserdce.by',
@@ -184,7 +236,29 @@ export const organizationsBY: OrgSeed[] = [
     eripServiceCode: '1535594', note: 'Временное жильё, лечение, пристройство. Член АЗО', source: 'azo.by, dubasov.com',
   },
 
+  {
+    name: 'Лучик надежды (Жлобин)', cityName: 'Жлобин', kind: 'Волонтёрская группа',
+    note: 'ok.ru/group/52347152498846; также «Помощь бездомным животным г. Жлобина»: ok.ru/group/53122326724732', source: 'ok.ru',
+  },
+  {
+    name: 'Помощь бездомным животным г. Светлогорска', cityName: 'Светлогорск', kind: 'Волонтёрская группа',
+    phone: '+375 44 700-78-60 (Лена)', vkUrl: 'https://vk.com/public212439475', source: 'svetlik.net, vk.com',
+  },
+  {
+    name: 'Помощь животным | Рогачёв, Светлогорск, Жлобин', cityName: 'Рогачёв', kind: 'Волонтёрская команда',
+    vkUrl: 'https://vk.com/rogachevhelp', note: 'За год пристроили более 70 кошек', source: 'slova.by, vk.com',
+  },
+  { name: 'Подари им шанс', cityName: 'Гомель', kind: 'Волонтёрское движение (не приют)', note: 'ok.ru/gruppavolo', source: 'ok.ru' },
+  {
+    name: 'Волонтёры гомельского отлова', cityName: 'Гомель', kind: 'Волонтёры, ищут дома собакам из отлова',
+    phone: '+375 29 654-08-79 (Ксения)', note: 'ok.ru/group/70000025133155. Доставка по Беларуси и в Россию', source: 'ok.ru',
+  },
+
   // Могилёвская область
+  {
+    name: 'Варежка добра / кОтель', cityName: 'Могилёв', kind: 'Волонтёры (кошки)',
+    phone: '+375 29 516-29-49 (Наталья)', note: 'ok.ru/group58016172343371', source: 'ok.ru',
+  },
   {
     name: 'Доброе сердце (Могилёв)', cityName: 'Могилёв', kind: 'ОО «Могилёвское общество защиты животных» (не приют)',
     websiteUrl: 'http://dsmogilev.by', instagramUrl: 'https://www.instagram.com/dobroe_serdce_mogilev',
@@ -199,9 +273,29 @@ export const organizationsBY: OrgSeed[] = [
 
   // Витебская область
   {
-    name: 'Добрик', cityName: 'Витебск', kind: 'Приют для бездомных животных',
+    name: 'Добрик', cityName: 'Витебск', kind: 'Приют для бездомных животных', websiteUrl: 'https://dobrik.by',
     note: 'Сюда привозят животных с отлова; возможно, это приют при ГП «Спецавтобаза г. Витебска» (не проверено)',
-    source: 'zerkalo.io',
+    source: 'zerkalo.io, tailharbor.eu',
+  },
+  {
+    name: 'Друг (Новополоцк)', cityName: 'Новополоцк', kind: 'Благотворительное общественное объединение защиты животных «Друг», приют',
+    phone: '+375 33 678-92-42, +375 29 712-57-00', note: 'Телефоны из публикации 2018 года, нужна проверка',
+    source: 'novopolotsk.by, gorod214.by',
+  },
+  {
+    name: 'Добрые руки (Новополоцк)', cityName: 'Новополоцк', kind: 'Общество защиты животных',
+    note: 'Помогает ПВС Новополоцкой спецавтобазы. Контакты не найдены', source: 'novaya.by',
+  },
+  {
+    name: 'ШАНС (Боровуха)', cityName: 'Новополоцк', kind: 'БООПЖ «ШАНС», приют для бездомных животных',
+    address: 'Боровуха-1', phone: '+375 33 694-40-04',
+    note: 'Телефон из поста о собаке приюта (#приют_шанс_Новополоцк), нужна проверка', source: 'psu.by, ok.ru',
+  },
+  { name: 'Право на жизнь', cityName: 'Полоцк', kind: 'Приют для животных', note: 'Полоцкий район. Контакты не найдены', source: 'pvestnik.by' },
+  {
+    name: 'Помощь животным в Полоцке и Новополоцке', cityName: 'Новополоцк', kind: 'Волонтёрское движение',
+    websiteUrl: 'https://homeless-by.orgs.biz', note: 'В источнике номер с ошибкой (+7 (033) 695-00-12), вероятно +375 33 695-00-12',
+    source: 'homeless-by.orgs.biz',
   },
 ];
 
