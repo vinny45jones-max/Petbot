@@ -10,7 +10,8 @@ export const Organizations: CollectionConfig = {
     defaultColumns: ['name', 'city', 'isVerified', 'isPublished', 'updatedAt'],
   },
   access: {
-    read: () => true,
+    // REST отдаёт коллекцию анонимам: неопубликованные (реальные организации до их согласия) видит только staff
+    read: ({ req: { user } }) => (isAdmin(user as any) ? true : { isPublished: { equals: true } }),
     create: ({ req: { user } }) => isAdmin(user as any),
     update: async ({ req: { user, payload }, id }) =>
       isAdmin(user as any) || (id != null ? await userAdministersOrg(payload, user as any, id) : false),

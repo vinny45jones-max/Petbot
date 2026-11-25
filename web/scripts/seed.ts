@@ -111,6 +111,7 @@ async function main() {
   for (const email of TEST_CITIZENS) await seedTestUser(payload, email);
   await seedTestUser(payload, 'moderator-2fa@test.local', 'moderator');
   await seedTestOrgAdmin(payload);
+  await seedTestHiddenOrg(payload);
   await seedTestDonations(payload);
   console.log('Seeded facilities, orgs, animals.');
   process.exit(0);
@@ -160,6 +161,18 @@ async function seedTestOrgAdmin(payload: any) {
       overrideAccess: true,
     });
   }
+}
+
+// Неопубликованная организация — для e2e: снаружи (REST) её быть не должно. Без admins, чтобы не менять кабинеты.
+async function seedTestHiddenOrg(payload: any) {
+  if (process.env.NODE_ENV === 'production') return;
+  const exists = await payload.find({ collection: 'organizations', where: { slug: { equals: 'test-hidden-shelter' } }, limit: 1, overrideAccess: true });
+  if (exists.docs.length) return;
+  await payload.create({
+    collection: 'organizations',
+    data: { name: 'Тест-приют скрытый', slug: 'test-hidden-shelter', phone: '+375290000099', isVerified: false, isPublished: false } as any,
+    overrideAccess: true,
+  });
 }
 
 // Донаты для e2e кабинетов: оплаченный и неоплаченный от citizen-donations приюту test-shelter.
