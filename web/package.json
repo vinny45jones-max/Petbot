@@ -17,6 +17,7 @@
     "seed": "node scripts/seed.ts",
     "seed:content": "node scripts/seed-content.ts",
     "seed:demo": "node scripts/seed-demo.ts",
+    "seed:orgs": "node scripts/seed-organizations.ts",
     "cron:urgency": "node scripts/cron-urgency.ts",
     "cron:reconcile": "node scripts/cron-reconcile.ts",
     "backup:db": "node scripts/backup-db.ts",
